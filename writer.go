@@ -78,8 +78,11 @@ func (w *decryptedWriter) Write(p []byte) (n int, err error) {
 
 func (w *decryptedWriter) Close() error {
 	if w.offset > 0 {
-		if w.offset <= headerSize+tagSize {
-			return errPackageMismatch
+		if w.offset < headerSize {
+			return errMissingHeader
+		}
+		if w.offset < headerSize+header(w.pack[:]).Len()+tagSize {
+			return errBadPayloadLen
 		}
 		if err := w.decrypt(w.pack[:]); err != nil {
 			return err
@@ -103,7 +106,7 @@ func (w *decryptedWriter) decrypt(src []byte) error {
 	aeadCipher := w.ciphers[header.Cipher()]
 	plaintext, err := aeadCipher.Open(w.pack[headerSize:headerSize], header[4:headerSize], src[headerSize:headerSize+header.Len()+tagSize], header[:4])
 	if err != nil {
-		return err
+		return errTagMissmatch
 	}
 
 	n, err := w.dst.Write(plaintext)

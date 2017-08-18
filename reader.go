@@ -135,19 +135,12 @@ func (r *decryptedReader) Read(p []byte) (n int, err error) {
 }
 
 func (r *decryptedReader) readHeader() error {
-	header := header(r.pack[:])
-	n, err := io.ReadFull(r.src, header)
+	n, err := io.ReadFull(r.src, header(r.pack[:]))
 	if n > 0 && err == io.ErrUnexpectedEOF {
-		return errPackageMismatch
+		return errMissingHeader
 	}
 	if err != nil {
 		return err
-	}
-	if err = r.config.verifyHeader(header); err != nil {
-		return err
-	}
-	if header.SequenceNumber() != r.sequenceNumber {
-		return errPackageOutOfOrder
 	}
 	return nil
 }
@@ -163,7 +156,7 @@ func (r *decryptedReader) decrypt(dst []byte) (n int, err error) {
 	ciphertext := r.pack[headerSize : headerSize+header.Len()+tagSize]
 	n, err = io.ReadFull(r.src, ciphertext)
 	if err == io.EOF || err == io.ErrUnexpectedEOF {
-		return 0, errPackageMismatch
+		return 0, errBadPayloadLen
 	}
 	if err != nil {
 		return 0, err
@@ -171,7 +164,7 @@ func (r *decryptedReader) decrypt(dst []byte) (n int, err error) {
 	aeadCipher := r.ciphers[header.Cipher()]
 	plaintext, err := aeadCipher.Open(dst[:0], header[4:], ciphertext, header[:4])
 	if err != nil {
-		return 0, err
+		return 0, errTagMissmatch
 	}
 	r.sequenceNumber++
 	return len(plaintext), nil

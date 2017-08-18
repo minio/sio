@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package aead implements the DARP format and provides an API for
-// en/drcrypting data streams.
+// en/decrypting data streams.
 package aead // import "github.com/minio/aead"
 
 import (
@@ -43,11 +43,12 @@ const (
 )
 
 var (
-	errMissingHeader      = errors.New("sds: incomplete header")
-	errPackageMismatch    = errors.New("sds: invalid payload size")
-	errPackageOutOfOrder  = errors.New("sds: sequence number mismatch")
-	errUnsupportedVersion = errors.New("sds: unsupported version")
-	errUnsupportedCipher  = errors.New("sds: unsupported cipher suite")
+	errMissingHeader      = errors.New("darp: incomplete header")
+	errBadPayloadLen      = errors.New("darp: invalid payload length")
+	errPackageOutOfOrder  = errors.New("darp: sequence number mismatch")
+	errTagMissmatch       = errors.New("darp: authentication failed")
+	errUnsupportedVersion = errors.New("darp: unsupported version")
+	errUnsupportedCipher  = errors.New("darp: unsupported cipher suite")
 )
 
 var newAesGcm = func(key []byte) (cipher.AEAD, error) {
@@ -186,23 +187,26 @@ func DecryptWriter(dst io.Writer, config Config) (io.WriteCloser, error) {
 
 func setConfigDefaults(config *Config) error {
 	if config.MinVersion > Version10 {
-		return errors.New("sds: unknown minimum version")
+		return errors.New("darp: unknown minimum version")
+	}
+	if config.MaxVersion > Version10 {
+		return errors.New("darp: unknown maximum version")
 	}
 	if len(config.Key) != 32 {
-		return errors.New("sds: invalid key size")
+		return errors.New("darp: invalid key size")
 	}
 	if len(config.CipherSuites) > 2 {
-		return errors.New("sds: too many cipher suites")
+		return errors.New("darp: too many cipher suites")
 	}
 	for _, c := range config.CipherSuites {
 		if int(c) >= len(supportedCiphers) {
-			return errors.New("sds: unknown cipher suite")
+			return errors.New("darp: unknown cipher suite")
 		}
 	}
 	if config.MinVersion < Version10 {
 		config.MinVersion = Version10
 	}
-	if config.MaxVersion != Version10 {
+	if config.MaxVersion < Version10 {
 		config.MaxVersion = config.MinVersion
 	}
 	if len(config.CipherSuites) == 0 {

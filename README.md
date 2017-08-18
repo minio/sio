@@ -29,7 +29,7 @@ all decrypted data until the authentication tag is verified. Returning unauthent
 data has the same issues like encrypting data without authentication.
 
 Splitting the data into small chunks fixes the problem of deferred authentication checks
-but introduces a new one. The chunks can be reordered - like exchanging chunk 1 and 2 - 
+but introduces a new one. The chunks can be reordered - e.g. exchanging chunk 1 and 2 - 
 because every chunk is encrypted separately. Therefore the order of the chunks must be
 encoded somehow into the chunks itself to be able to detect rearranging any number of 
 chunks.     
@@ -55,15 +55,13 @@ Its main properties are:
  - Support for long data streams - up to 256 TB under the same key  
  - Random access - arbitrary sequences / ranges can be decrypted independently
 
-Install: `go get -u github.com/minio/aead`
+**Install:** `go get -u github.com/minio/aead`
 
 ## Performance
-
-AMD64 with AES-NI and AVX2:
 
 Cipher            |   8 KB   |   64 KB   |   512 KB  |  1 MB
 ----------------- | -------- | --------- | --------- | --------
 AES_256_GCM       |  90 MB/s | 1.96 GB/s | 2.64 GB/s | 2.83 GB/s
 CHACHA20_POLY1305 |  97 MB/s | 1.23 GB/s | 1.54 GB/s | 1.57 GB/s
 
-*On i7-6500U 2 x 2.5 GHz | Linux 4.10.0-32-generic | Go 1.8.3*
+*On i7-6500U 2 x 2.5 GHz | Linux 4.10.0-32-generic | Go 1.8.3 | AES-NI & AVX2*

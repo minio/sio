@@ -288,6 +288,109 @@ func TestVectors(t *testing.T) {
 	}
 }
 
+var maliciousVectors = []struct {
+	config                  Config
+	header, ciphertext, tag []byte
+	err                     error
+}{
+	{
+		config:     Config{},
+		header:     []byte{16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // header too small
+		ciphertext: nil,
+		tag:        nil,
+		err:        errMissingHeader,
+	},
+	{
+		config:     Config{},
+		header:     []byte{15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // bad version
+		ciphertext: []byte{218},
+		tag:        []byte{245, 10, 224, 169, 227, 81, 137, 91, 231, 37, 240, 4, 78, 104, 89, 213},
+		err:        errUnsupportedVersion,
+	},
+	{
+		config:     Config{},
+		header:     []byte{16, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // bad cipher
+		ciphertext: []byte{218},
+		tag:        []byte{245, 10, 224, 169, 227, 81, 137, 91, 231, 37, 240, 4, 78, 104, 89, 213},
+		err:        errUnsupportedCipher,
+	},
+	{
+		config:     Config{},
+		header:     []byte{16, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // unsupported version
+		ciphertext: []byte{218},
+		tag:        []byte{245, 10, 224, 169, 227, 81, 137, 91, 231, 37, 240, 4, 78, 104, 89, 213},
+		err:        errTagMissmatch,
+	},
+	{
+		config:     Config{},
+		header:     []byte{16, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // invalid sequence number
+		ciphertext: []byte{218},
+		tag:        []byte{245, 10, 224, 169, 227, 81, 137, 91, 231, 37, 240, 4, 78, 104, 89, 213},
+		err:        errPackageOutOfOrder,
+	},
+	{
+		config:     Config{},
+		header:     []byte{16, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // wrong cipher
+		ciphertext: []byte{218},
+		tag:        []byte{245, 10, 224, 169, 227, 81, 137, 91, 231, 37, 240, 4, 78, 104, 89, 213},
+		err:        errTagMissmatch,
+	},
+	{
+		config:     Config{},
+		header:     []byte{16, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // wrong cipher
+		ciphertext: []byte{218},
+		tag:        []byte{245, 10, 224, 169, 227, 81, 137, 91, 231, 37, 240, 4, 78, 104, 89, 213},
+		err:        errTagMissmatch,
+	},
+	{
+		config:     Config{},
+		header:     []byte{16, 0, 2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+		ciphertext: []byte{52, 114},
+		tag:        []byte{183, 185, 30, 215, 70, 86, 86, 205, 76, 247, 167, 13, 204, 212, 172, 116},
+		err:        errBadPayloadLen,
+	},
+	{
+		config:     Config{},
+		header:     []byte{16, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+		ciphertext: []byte{52, 114, 22},
+		tag:        []byte{183, 185, 30, 215, 70, 86, 86, 205, 76, 247, 167, 13, 204, 212, 172, 116},
+		err:        errTagMissmatch,
+	},
+}
+
+func TestMaliciousVectors(t *testing.T) {
+	key, err := hex.DecodeString("000102030405060708090A0B0C0D0E0FF0E0D0C0B0A090807060504030201000")
+	if err != nil {
+		t.Fatalf("Failed to decode key: %v", err)
+	}
+	for i, test := range maliciousVectors {
+		config := test.config
+		config.Key = key
+
+		data := append(test.header, test.ciphertext...)
+		data = append(data, test.tag...)
+		buffer := make([]byte, len(data))
+
+		reader, err := DecryptReader(bytes.NewReader(data), config)
+		if err != nil {
+			t.Fatalf("Test %d: failed to create decrypted reader: %v", i, err)
+		}
+		if _, err = reader.Read(buffer); err != test.err {
+			t.Errorf("Test %d: should fail with: %v but failed with: %v", i, test.err, err)
+		}
+
+		writer, err := DecryptWriter(bytes.NewBuffer(buffer[:0]), config)
+		if err != nil {
+			t.Fatalf("Test %d: failed to create decrypted reader: %v", i, err)
+		}
+		_, wErr := writer.Write(data)
+		cErr := writer.Close()
+		if wErr != test.err && cErr != test.err {
+			t.Errorf("Test %d: should fail with: %v but failed with: write: %v and close: %v", i, test.err, wErr, cErr)
+		}
+	}
+}
+
 // Benchmarks
 
 func BenchmarkEncryptReader_8KB(b *testing.B)   { benchmarkEncryptRead(1024, b) }
