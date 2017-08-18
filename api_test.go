@@ -1,3 +1,16 @@
+// Copyright (C) 2017 Minio Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 package aead
 
 import (
@@ -277,25 +290,25 @@ func TestVectors(t *testing.T) {
 
 // Benchmarks
 
-func BenchmarkEncryptReader_8KB(b *testing.B)  { benchmarkEncryptRead(1024, b) }
-func BenchmarkEncryptReader_64KB(b *testing.B) { benchmarkEncryptRead(64*1024, b) }
-func BenchmarkEncryptReader_1MB(b *testing.B)  { benchmarkEncryptRead(1024*1024, b) }
-func BenchmarkEncryptReader_5MB(b *testing.B)  { benchmarkEncryptRead(1024*1024, b) }
+func BenchmarkEncryptReader_8KB(b *testing.B)   { benchmarkEncryptRead(1024, b) }
+func BenchmarkEncryptReader_64KB(b *testing.B)  { benchmarkEncryptRead(64*1024, b) }
+func BenchmarkEncryptReader_512KB(b *testing.B) { benchmarkEncryptRead(512*1024, b) }
+func BenchmarkEncryptReader_1MB(b *testing.B)   { benchmarkEncryptRead(1024*1024, b) }
 
-func BenchmarkDecryptReader_8KB(b *testing.B)  { benchmarkDecryptRead(1024, b) }
-func BenchmarkDecryptReader_64KB(b *testing.B) { benchmarkDecryptRead(64*1024, b) }
-func BenchmarkDecryptReader_1MB(b *testing.B)  { benchmarkDecryptRead(1024*1024, b) }
-func BenchmarkDecryptReader_5MB(b *testing.B)  { benchmarkDecryptRead(1024*1024, b) }
+func BenchmarkDecryptReader_8KB(b *testing.B)   { benchmarkDecryptRead(1024, b) }
+func BenchmarkDecryptReader_64KB(b *testing.B)  { benchmarkDecryptRead(64*1024, b) }
+func BenchmarkDecryptReader_512KB(b *testing.B) { benchmarkDecryptRead(512*1024, b) }
+func BenchmarkDecryptReader_1MB(b *testing.B)   { benchmarkDecryptRead(1024*1024, b) }
 
-func BenchmarkEncryptWriter_8KB(b *testing.B)  { benchmarkEncryptWrite(1024, b) }
-func BenchmarkEncryptWriter_64KB(b *testing.B) { benchmarkEncryptWrite(64*1024, b) }
-func BenchmarkEncryptWriter_1MB(b *testing.B)  { benchmarkEncryptWrite(1024*1024, b) }
-func BenchmarkEncryptWriter_5MB(b *testing.B)  { benchmarkEncryptWrite(1024*1024, b) }
+func BenchmarkEncryptWriter_8KB(b *testing.B)   { benchmarkEncryptWrite(1024, b) }
+func BenchmarkEncryptWriter_64KB(b *testing.B)  { benchmarkEncryptWrite(64*1024, b) }
+func BenchmarkEncryptWriter_512KB(b *testing.B) { benchmarkEncryptWrite(512*1024, b) }
+func BenchmarkEncryptWriter_1MB(b *testing.B)   { benchmarkEncryptWrite(1024*1024, b) }
 
-func BenchmarkDecryptWriter_8KB(b *testing.B)  { benchmarkDecryptWrite(1024, b) }
-func BenchmarkDecryptWriter_64KB(b *testing.B) { benchmarkDecryptWrite(64*1024, b) }
-func BenchmarkDecryptWriter_1MB(b *testing.B)  { benchmarkDecryptWrite(1024*1024, b) }
-func BenchmarkDecryptWriter_5MB(b *testing.B)  { benchmarkDecryptWrite(1024*1024, b) }
+func BenchmarkDecryptWriter_8KB(b *testing.B)   { benchmarkDecryptWrite(1024, b) }
+func BenchmarkDecryptWriter_64KB(b *testing.B)  { benchmarkDecryptWrite(64*1024, b) }
+func BenchmarkDecryptWriter_512KB(b *testing.B) { benchmarkDecryptWrite(512*1024, b) }
+func BenchmarkDecryptWriter_1MB(b *testing.B)   { benchmarkDecryptWrite(1024*1024, b) }
 
 func benchmarkEncryptRead(size int64, b *testing.B) {
 	data := make([]byte, size)

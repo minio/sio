@@ -8,9 +8,9 @@ This project is currently under development and should not be used in production
 
 It is a common problem to store data securely - especially on untrusted remote storage. 
 One solution to this problem is cryptography. Before data is stored it is encrypted
-to ensure that is is secret. Unfortunately encrypting data is not enough to prevent more
-sophisticated attacks. Anyone who has access to the stored data can try to manipulate the
-data - even if the data is encrypted.
+to ensure that the data is confidential. Unfortunately encrypting data is not enough to
+prevent more sophisticated attacks. Anyone who has access to the stored data can try to
+manipulate the data - even if the data is encrypted.
 
 To prevent these kinds of attacks the data must be encrypted in a tamper-resistant way.
 This means an attacker should not be able to:
@@ -20,13 +20,50 @@ This means an attacker should not be able to:
 
 Authenticated encryption schemes (AE) - like AES-GCM or ChaCha20-Poly1305 - encrypt and
 authenticate data. Any modification to the encrypted data (ciphertext) is detected while
-decrypting the data. But even AE alone is not sufficient enough to prevent all kinds of
-data manipulation. For further details see [link]().
+decrypting the data. But even an AE scheme alone is not sufficient enough to prevent all
+kinds of data manipulation.
 
-This project provides a easy-to-use Go library implementing a tamper-resistant data encryption
-scheme.
+All modern AE schemes produce an authentication tag which is verified after the ciphertext
+is decrypted. If a large amount of data is decrypted it is not always possible to buffer
+all decrypted data until the authentication tag is verified. Returning unauthenticated 
+data has the same issues like encrypting data without authentication.
+
+Splitting the data into small chunks fixes the problem of deferred authentication checks
+but introduces a new one. The chunks can be reordered - like exchanging chunk 1 and 2 - 
+because every chunk is encrypted separately. Therefore the order of the chunks must be
+encoded somehow into the chunks itself to be able to detect rearranging any number of 
+chunks.     
+
+This project specifies a [format]() for en/decrypting an arbitrary data stream and gives
+some [recommendations]() about how to use and implement data at rest protection (DARP).
+Additionally this project provides a reference implementation in Go.  
 
 ## Current status
 
-The implementation is under development and things likely change. Do not use this library
-expect for research or development reasons.
+This project is under development and things likely change. Do not use this library
+except for research or development reasons.
+
+## Applications
+
+DARP is designed with simplicity and efficiency in mind. It combines modern AE schemes
+with a very simple reorder protection mechanism to build a tamper-resistant encryption
+scheme. DARP can be used to encrypt files, backups and even large object storage systems.
+
+Its main properties are:
+ - Security and high performance by relying on modern AEAD ciphers
+ - Small overhead - encryption increases the amount of data ~0.05%
+ - Support for long data streams - up to 256 TB under the same key  
+ - Random access - arbitrary sequences / ranges can be decrypted independently
+
+Install: `go get -u github.com/minio/aead`
+
+## Performance
+
+AMD64 with AES-NI and AVX2:
+
+Cipher            |   8 KB   |   64 KB   |   512 KB  |  1 MB
+----------------- | -------- | --------- | --------- | --------
+AES_256_GCM       |  90 MB/s | 1.96 GB/s | 2.64 GB/s | 2.83 GB/s
+CHACHA20_POLY1305 |  97 MB/s | 1.23 GB/s | 1.54 GB/s | 1.57 GB/s
+
+*On i7-6500U 2 x 2.5 GHz | Linux 4.10.0-32-generic | Go 1.8.3*
