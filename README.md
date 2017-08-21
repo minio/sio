@@ -2,7 +2,7 @@
 
 This project is currently under development and should not be used in production!
 
-# Minio - AEAD
+# DARE to encrypt
 
 ## Introduction
 
@@ -34,9 +34,10 @@ because every chunk is encrypted separately. Therefore the order of the chunks m
 encoded somehow into the chunks itself to be able to detect rearranging any number of 
 chunks.     
 
-This project specifies a [format]() for en/decrypting an arbitrary data stream and gives
-some [recommendations]() about how to use and implement data at rest protection (DARP).
-Additionally this project provides a reference implementation in Go.  
+This project specifies a [format](https://github.com/minio/aead/blob/master/DARE.md) for 
+en/decrypting an arbitrary data stream and gives some [recommendations](https://github.com/minio/aead/blob/master/DARE.md#appendix)
+about how to use and implement data at rest encryption (DARE). Additionally this project
+provides a reference implementation in Go.  
 
 ## Current status
 
@@ -45,9 +46,9 @@ except for research or development reasons.
 
 ## Applications
 
-DARP is designed with simplicity and efficiency in mind. It combines modern AE schemes
+DARE is designed with simplicity and efficiency in mind. It combines modern AE schemes
 with a very simple reorder protection mechanism to build a tamper-resistant encryption
-scheme. DARP can be used to encrypt files, backups and even large object storage systems.
+scheme. DARE can be used to encrypt files, backups and even large object storage systems.
 
 Its main properties are:
  - Security and high performance by relying on modern AEAD ciphers
