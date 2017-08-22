@@ -68,6 +68,10 @@ func TestEncrypt(t *testing.T) {
 	config := Config{Key: key}
 	for i, test := range ioTests[:1] {
 		data := make([]byte, test.datasize)
+		if _, err := io.ReadFull(rand.Reader, data); err != nil {
+			t.Fatalf("Test %d: Failed to generate random data: %v", i, err)
+		}
+
 		decrypted, output := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
 
 		if _, err := Encrypt(output, bytes.NewReader(data), config); err != nil {
@@ -86,6 +90,9 @@ func TestReader(t *testing.T) {
 	config := Config{Key: make([]byte, 32)}
 	for i, test := range ioTests {
 		data, buffer := make([]byte, test.datasize), make([]byte, test.buffersize)
+		if _, err := io.ReadFull(rand.Reader, data); err != nil {
+			t.Fatalf("Test %d: Failed to generate random data: %v", i, err)
+		}
 
 		encReader, err := EncryptReader(bytes.NewReader(data), config)
 		if err != nil {
@@ -110,6 +117,10 @@ func TestWriter(t *testing.T) {
 	config := Config{Key: make([]byte, 32)}
 	for i, test := range ioTests {
 		data := make([]byte, test.datasize)
+		if _, err := io.ReadFull(rand.Reader, data); err != nil {
+			t.Fatalf("Test %d: Failed to generate random data: %v", i, err)
+		}
+
 		output := bytes.NewBuffer(nil)
 
 		decWriter, err := DecryptWriter(output, config)
@@ -121,7 +132,10 @@ func TestWriter(t *testing.T) {
 			t.Fatalf("Test %d: Failed to create encrypted writer: %v", i, err)
 		}
 
-		if _, err := encWriter.Write(data); err != nil {
+		if _, err := encWriter.Write(data[:1]); err != nil {
+			t.Errorf("Test %d: Writing failed: %v", i, err)
+		}
+		if _, err := encWriter.Write(data[1:]); err != nil {
 			t.Errorf("Test %d: Writing failed: %v", i, err)
 		}
 		if err := encWriter.Close(); err != nil {
@@ -141,6 +155,10 @@ func TestCopy(t *testing.T) {
 	config := Config{Key: key}
 	for i, test := range ioTests {
 		data, buffer := make([]byte, test.datasize), make([]byte, test.buffersize)
+		if _, err := io.ReadFull(rand.Reader, data); err != nil {
+			t.Fatalf("Test %d: Failed to generate random data: %v", i, err)
+		}
+
 		output := bytes.NewBuffer(nil)
 
 		decWriter, err := DecryptWriter(output, config)
@@ -344,7 +362,7 @@ var maliciousVectors = []struct {
 	},
 	{
 		config:     Config{},
-		header:     []byte{16, 0, 2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+		header:     []byte{16, 0, 2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0}, // payload length too large
 		ciphertext: []byte{52, 114},
 		tag:        []byte{183, 185, 30, 215, 70, 86, 86, 205, 76, 247, 167, 13, 204, 212, 172, 116},
 		err:        errBadPayloadLen,
@@ -352,7 +370,7 @@ var maliciousVectors = []struct {
 	{
 		config:     Config{},
 		header:     []byte{16, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
-		ciphertext: []byte{52, 114, 22},
+		ciphertext: []byte{52, 114, 22}, // ciphertext too long
 		tag:        []byte{183, 185, 30, 215, 70, 86, 86, 205, 76, 247, 167, 13, 204, 212, 172, 116},
 		err:        errTagMissmatch,
 	},
@@ -388,6 +406,64 @@ func TestMaliciousVectors(t *testing.T) {
 		if wErr != test.err && cErr != test.err {
 			t.Errorf("Test %d: should fail with: %v but failed with: write: %v and close: %v", i, test.err, wErr, cErr)
 		}
+	}
+}
+
+var sequenceNumberTest = []struct {
+	sequence    uint32
+	packages    int
+	modify      int
+	badSequence uint32
+}{
+	{sequence: 0, packages: 5, modify: 4, badSequence: 3},
+	{sequence: 1, packages: 7, modify: 2, badSequence: 4},
+	{sequence: 33333, packages: 6, modify: 1, badSequence: 33333},
+	{sequence: 1 << 30, packages: 5, modify: 0, badSequence: 0},
+	{sequence: 4, packages: 8, modify: 7, badSequence: 13},
+}
+
+func TestVerifySequenceNumbers(t *testing.T) {
+	key, err := hex.DecodeString("000102030405060708090A0B0C0D0E0FF0E0D0C0B0A090807060504030201000")
+	if err != nil {
+		t.Fatalf("Failed to decode key: %v", err)
+	}
+
+	for i, test := range sequenceNumberTest {
+		config := Config{
+			Key:            key,
+			SequenceNumber: test.sequence,
+		}
+
+		data := make([]byte, payloadSize*test.packages)
+		if _, err = io.ReadFull(rand.Reader, data); err != nil {
+			t.Fatalf("Test %d: Failed to generate random data: %v", i, err)
+		}
+		dst := make([]byte, (headerSize+payloadSize+tagSize)*test.packages)
+		if _, err = Encrypt(bytes.NewBuffer(dst[:0]), bytes.NewReader(data), config); err != nil {
+			t.Errorf("Test %d: Failed to encrypt data: %v", i, err)
+		}
+
+		if _, err = Decrypt(bytes.NewBuffer(nil), bytes.NewReader(dst), config); err != nil {
+			t.Errorf("Test %d: Failed to decrypt data: %v", i, err)
+		}
+
+		unmodifiedHeader := make([]byte, headerSize)
+		header := header(dst[(headerSize+payloadSize+tagSize)*test.modify:])
+		copy(unmodifiedHeader, header)
+
+		header.SetSequenceNumber(test.badSequence)
+		if _, err = Decrypt(bytes.NewBuffer(nil), bytes.NewReader(dst), config); err == nil {
+			t.Errorf("Test %d: Expected to report error while decrypting but decryption passed successfully", i)
+		}
+
+		decWriter, err := DecryptWriter(bytes.NewBuffer(nil), config)
+		if err != nil {
+			t.Fatalf("Test %d: Failed to create decrypting writer: %v", i, err)
+		}
+		if _, err = io.Copy(decWriter, bytes.NewReader(dst)); err == nil {
+			t.Errorf("Test %d: Expected to report error while decrypting but decryption passed successfully", i)
+		}
+		copy(header, unmodifiedHeader)
 	}
 }
 
