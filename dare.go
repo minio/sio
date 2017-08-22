@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package aead implements the DARP format and provides an API for
+// Package aead implements the DARE format and provides an API for
 // en/decrypting data streams.
 package aead // import "github.com/minio/aead"
 
@@ -43,12 +43,12 @@ const (
 )
 
 var (
-	errMissingHeader      = errors.New("darp: incomplete header")
-	errBadPayloadLen      = errors.New("darp: invalid payload length")
-	errPackageOutOfOrder  = errors.New("darp: sequence number mismatch")
-	errTagMissmatch       = errors.New("darp: authentication failed")
-	errUnsupportedVersion = errors.New("darp: unsupported version")
-	errUnsupportedCipher  = errors.New("darp: unsupported cipher suite")
+	errMissingHeader      = errors.New("dare: incomplete header")
+	errBadPayloadLen      = errors.New("dare: invalid payload length")
+	errPackageOutOfOrder  = errors.New("dare: sequence number mismatch")
+	errTagMissmatch       = errors.New("dare: authentication failed")
+	errUnsupportedVersion = errors.New("dare: unsupported version")
+	errUnsupportedCipher  = errors.New("dare: unsupported cipher suite")
 )
 
 var newAesGcm = func(key []byte) (cipher.AEAD, error) {
@@ -187,20 +187,20 @@ func DecryptWriter(dst io.Writer, config Config) (io.WriteCloser, error) {
 
 func setConfigDefaults(config *Config) error {
 	if config.MinVersion > Version10 {
-		return errors.New("darp: unknown minimum version")
+		return errors.New("dare: unknown minimum version")
 	}
 	if config.MaxVersion > Version10 {
-		return errors.New("darp: unknown maximum version")
+		return errors.New("dare: unknown maximum version")
 	}
 	if len(config.Key) != 32 {
-		return errors.New("darp: invalid key size")
+		return errors.New("dare: invalid key size")
 	}
 	if len(config.CipherSuites) > 2 {
-		return errors.New("darp: too many cipher suites")
+		return errors.New("dare: too many cipher suites")
 	}
 	for _, c := range config.CipherSuites {
 		if int(c) >= len(supportedCiphers) {
-			return errors.New("darp: unknown cipher suite")
+			return errors.New("dare: unknown cipher suite")
 		}
 	}
 	if config.MinVersion < Version10 {
