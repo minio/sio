@@ -17,8 +17,8 @@ is not able to:
  - modify the content of one or more packages.
  - reorder/rearrange one or more packages.
 
- An attacker is defined as somebody how has full access to the encrypted data
- but not the encryption key. An attacker can also act as storage provider.
+ An attacker is defined as somebody who has full access to the encrypted data
+ but not to the encryption key. An attacker can also act as storage provider.
 
 ### 2.1 Cryptographic Notation
 
@@ -80,15 +80,15 @@ Version | Cipher suite | Payload size     | Sequence number  | nonce
 --------|--------------|------------------|------------------|---------
 1 byte  | 1 byte       | 2 bytes / uint16 | 4 bytes / uint32 | 8 bytes
 
-The first byte specifies the version used to encrypt the package and is equal to 0x10
-for DARE version 1.0. The second byte specifies the cipher used to encrypt the package.
+The first byte specifies the version of the format and is equal to 0x10 for DARE 
+version 1.0. The second byte specifies the cipher used to encrypt the package.
 
 Cipher            | Value
 ------------------|-------
 AES-256_GCM       | 0x00
 CHACHA20_POLY1305 | 0x01
 
-The payload size is an uin16 number. The real payload size is defined as the payload
+The payload size is an uint16 number. The real payload size is defined as the payload
 size field as uint32 + 1. This ensures that the payload can be exactly 64 KB long and
 prevents empty packages without a payload.
 
@@ -206,8 +206,8 @@ file path). If a different data stream is stored under the same identifier - e.g
 data - the derived key would be the same for both streams.
 
 Instead encryption keys should be derived from a master key and a random value. It is not required
-that the random value is undistinguishable from a truly random bit sequence. The random **must** be
-unique but need not to be secret - depending on the security properties of the KDF.
+that the random value is undistinguishable from a truly random bit sequence. The random value **must**
+be unique but need not to be secret - depending on the security properties of the KDF.
 
 To keep this simple: The combination of master key and random value used to derive the encryption key
 must be unique for all time. 
