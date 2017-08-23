@@ -550,6 +550,51 @@ func TestFiles(t *testing.T) {
 	}
 }
 
+var appendTests = []struct {
+	startSequence uint32
+	datasize      int
+	parts         int
+}{
+	{startSequence: 0, datasize: 512 * 1024, parts: 4},
+	{startSequence: 7, datasize: 64 * 1024, parts: 9},
+	{startSequence: 2, datasize: 64*1024 - 1, parts: 6},
+	{startSequence: 1, datasize: 64*1024 + 1, parts: 11},
+	{startSequence: 33333, datasize: 1, parts: 17},
+	{startSequence: 0, datasize: 64*1024 + 17, parts: 2},
+	{startSequence: 5, datasize: 64*1024 - 100, parts: 4},
+}
+
+func TestAppending(t *testing.T) {
+	for i, test := range appendTests {
+		key := make([]byte, 32)
+		if _, err := io.ReadFull(rand.Reader, key); err != nil {
+			t.Fatalf("Failed to generate random key: %v", err)
+		}
+		data := make([]byte, test.datasize)
+		if _, err := io.ReadFull(rand.Reader, data); err != nil {
+			t.Fatalf("Failed to generate random data: %v", err)
+		}
+
+		dst := bytes.NewBuffer(nil)
+		config := Config{
+			Key:            key,
+			SequenceNumber: test.startSequence,
+		}
+		for j := 0; j < test.parts; j++ {
+			if _, err := Encrypt(dst, bytes.NewReader(data), config); err != nil {
+				t.Fatalf("Test %d: Failed to encrypt %d part: %v", i, j, err)
+			}
+			config.SequenceNumber += uint32(test.datasize / payloadSize)
+			if test.datasize%payloadSize > 0 {
+				config.SequenceNumber++
+			}
+		}
+		if _, err := Decrypt(bytes.NewBuffer(nil), bytes.NewReader(dst.Bytes()), Config{Key: key, SequenceNumber: test.startSequence}); err != nil {
+			t.Errorf("Test %d: Failed to decrypt concatenated data: %v", i, err)
+		}
+	}
+}
+
 // Benchmarks
 
 func BenchmarkEncryptReader_8KB(b *testing.B)   { benchmarkEncryptRead(1024, b) }
