@@ -32,9 +32,9 @@ DARE will use the following notations:
  - The compare functions **a == b => f** and **a != b => f** succeed when **a** 
    is equal to **b** and **a** is not equal to **b** respectively and execute the command **f**.
  - The function **CTC(a, b)** returns **1** only if **a** and **b** are equal, 0 otherwise.
-   CCT compares both values in **constant time**.
+   CTC compares both values in **constant time**.
  - **ENC(key, nonce, plaintext, addData)** represents the byte sequence which is
-   the output from an AEAD cipher authenticating the *addData* and encrypting &
+   the output from an AEAD cipher authenticating the *addData*, encrypting and
    authenticating the *plaintext* with the secret encryption *key* and the *nonce*.
  - **DEC(key, nonce, ciphertext, addData)** represents the byte sequence which is
    the output from an AEAD cipher verifying the integrity of the *ciphertext* &
