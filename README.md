@@ -20,7 +20,7 @@ This means an attacker should not be able to:
 
 Authenticated encryption schemes (AE) - like AES-GCM or ChaCha20-Poly1305 - encrypt and
 authenticate data. Any modification to the encrypted data (ciphertext) is detected while
-decrypting the data. But even an AE scheme alone is not sufficient enough to prevent all
+decrypting the data. But even an AE scheme alone is not sufficiently enough to prevent all
 kinds of data manipulation.
 
 All modern AE schemes produce an authentication tag which is verified after the ciphertext
@@ -41,8 +41,8 @@ provides a reference implementation in Go.
 
 ## Current status
 
-This project is under development and things likely change. Do not use this library
-except for research or development reasons.
+This project is under development and things are likely to change. Do not use this library
+except for research or development purposes.
 
 ## Applications
 
@@ -52,7 +52,7 @@ scheme. DARE can be used to encrypt files, backups and even large object storage
 
 Its main properties are:
  - Security and high performance by relying on modern AEAD ciphers
- - Small overhead - encryption increases the amount of data ~0.05%
+ - Small overhead - encryption increases the amount of data by ~0.05%
  - Support for long data streams - up to 256 TB under the same key  
  - Random access - arbitrary sequences / ranges can be decrypted independently
 

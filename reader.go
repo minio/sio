@@ -39,7 +39,7 @@ func (r *encryptedReader) Read(p []byte) (n int, err error) {
 			r.offset += n
 			return
 		}
-		n += copy(p, r.pack[r.offset:r.offset+remaining])
+		n = copy(p, r.pack[r.offset:r.offset+remaining])
 		p = p[remaining:]
 		r.offset = 0
 	}
@@ -136,10 +136,9 @@ func (r *decryptedReader) Read(p []byte) (n int, err error) {
 
 func (r *decryptedReader) readHeader() error {
 	n, err := io.ReadFull(r.src, header(r.pack[:]))
-	if n > 0 && err == io.ErrUnexpectedEOF {
+	if n != headerSize && err == io.ErrUnexpectedEOF {
 		return errMissingHeader
-	}
-	if err != nil {
+	} else if err != nil {
 		return err
 	}
 	return nil
@@ -156,15 +155,14 @@ func (r *decryptedReader) decrypt(dst []byte) (n int, err error) {
 	ciphertext := r.pack[headerSize : headerSize+header.Len()+tagSize]
 	n, err = io.ReadFull(r.src, ciphertext)
 	if err == io.EOF || err == io.ErrUnexpectedEOF {
-		return 0, errBadPayloadLen
-	}
-	if err != nil {
+		return 0, errPayloadTooShort
+	} else if err != nil {
 		return 0, err
 	}
 	aeadCipher := r.ciphers[header.Cipher()]
 	plaintext, err := aeadCipher.Open(dst[:0], header[4:], ciphertext, header[:4])
 	if err != nil {
-		return 0, errTagMissmatch
+		return 0, errTagMismatch
 	}
 	r.sequenceNumber++
 	return len(plaintext), nil

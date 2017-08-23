@@ -17,7 +17,11 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -60,13 +64,38 @@ var ioTests = []struct {
 	{datasize: payloadSize + 1, buffersize: payloadSize - 1},            // 33
 }
 
+func dumpDareStream(strm []byte) {
+	i := 0
+	for {
+		hdr := header(strm[i:])
+
+		fmt.Print("[")
+		for i, b := range hdr {
+			fmt.Printf("%02x", b)
+			if i != len(hdr)-1 {
+				fmt.Print(" ")
+			}
+		}
+		fmt.Print("]")
+
+		fmt.Printf(" version=0x%02x, cipher=0x%02x, len=0x%x, sequencenr=0x%x\n", hdr.Version(), hdr.Cipher(), hdr.Len(), hdr.SequenceNumber())
+
+		i += headerSize + hdr.Len() + tagSize
+		if i == len(strm) {
+			break
+		} else if i > len(strm) {
+			panic(fmt.Sprintf("index larger than stream size, %d, %d", i, len(strm)))
+		}
+	}
+}
+
 func TestEncrypt(t *testing.T) {
 	key := make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, key); err != nil {
 		t.Fatalf("Failed to generate random key: %v", err)
 	}
 	config := Config{Key: key}
-	for i, test := range ioTests[:1] {
+	for i, test := range ioTests {
 		data := make([]byte, test.datasize)
 		if _, err := io.ReadFull(rand.Reader, data); err != nil {
 			t.Fatalf("Test %d: Failed to generate random data: %v", i, err)
@@ -77,6 +106,7 @@ func TestEncrypt(t *testing.T) {
 		if _, err := Encrypt(output, bytes.NewReader(data), config); err != nil {
 			t.Errorf("Test %d: Encryption failed: %v", i, err)
 		}
+		// dumpDareStream(output.Bytes())
 		if n, err := Decrypt(decrypted, output, config); n != int64(test.datasize) || err != nil {
 			t.Errorf("Test %d: Decryption failed: number of bytes: %d - %v", i, n, err)
 		}
@@ -337,7 +367,7 @@ var maliciousVectors = []struct {
 		header:     []byte{16, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // unsupported version
 		ciphertext: []byte{218},
 		tag:        []byte{245, 10, 224, 169, 227, 81, 137, 91, 231, 37, 240, 4, 78, 104, 89, 213},
-		err:        errTagMissmatch,
+		err:        errTagMismatch,
 	},
 	{
 		config:     Config{},
@@ -351,28 +381,42 @@ var maliciousVectors = []struct {
 		header:     []byte{16, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // wrong cipher
 		ciphertext: []byte{218},
 		tag:        []byte{245, 10, 224, 169, 227, 81, 137, 91, 231, 37, 240, 4, 78, 104, 89, 213},
-		err:        errTagMissmatch,
+		err:        errTagMismatch,
 	},
 	{
 		config:     Config{},
 		header:     []byte{16, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // wrong cipher
 		ciphertext: []byte{218},
 		tag:        []byte{245, 10, 224, 169, 227, 81, 137, 91, 231, 37, 240, 4, 78, 104, 89, 213},
-		err:        errTagMissmatch,
+		err:        errTagMismatch,
 	},
 	{
 		config:     Config{},
 		header:     []byte{16, 0, 2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0}, // payload length too large
 		ciphertext: []byte{52, 114},
 		tag:        []byte{183, 185, 30, 215, 70, 86, 86, 205, 76, 247, 167, 13, 204, 212, 172, 116},
-		err:        errBadPayloadLen,
+		err:        errPayloadTooShort,
+	},
+	{
+		config:     Config{},
+		header:     []byte{16, 0, 0, 0, 0, 0, 0, 0, 146, 140, 4, 182, 237, 41, 185, 5}, // payload length is one but empty ciphertext
+		ciphertext: []byte{ /*144*/ },
+		tag:        []byte{104, 16, 43, 23, 1, 226, 58, 67, 55, 234, 18, 160, 64, 47, 166, 158},
+		err:        errPayloadTooShort,
+	},
+	{
+		config:     Config{},
+		header:     []byte{16, 0, 2, 0, 0, 0, 0, 0, 30, 2, 115, 248, 75, 180, 105, 205}, // payload length too small (resulting in tag mismatch)
+		ciphertext: []byte{30, 242, 98, 22},
+		tag:        []byte{22, 194, 137, 24, 116, 52, 216, 208, 0, 244, 187, 218, 208, 6, 39, 65},
+		err:        errTagMismatch,
 	},
 	{
 		config:     Config{},
 		header:     []byte{16, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
 		ciphertext: []byte{52, 114, 22}, // ciphertext too long
 		tag:        []byte{183, 185, 30, 215, 70, 86, 86, 205, 76, 247, 167, 13, 204, 212, 172, 116},
-		err:        errTagMissmatch,
+		err:        errTagMismatch,
 	},
 }
 
@@ -464,6 +508,45 @@ func TestVerifySequenceNumbers(t *testing.T) {
 			t.Errorf("Test %d: Expected to report error while decrypting but decryption passed successfully", i)
 		}
 		copy(header, unmodifiedHeader)
+	}
+}
+
+func testFile(t *testing.T, file string) {
+	data, err := ioutil.ReadFile(file)
+	if len(data) == 0 {
+		return // exit out for empty files
+	}
+
+	key, err := hex.DecodeString("000102030405060708090A0B0C0D0E0FF0E0D0C0B0A090807060504030201000")
+	if err != nil {
+		t.Fatalf("Failed to decode key: %v", err)
+	}
+	config := Config{}
+	config.Key = key
+
+	decrypted, output := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
+
+	if _, err := Encrypt(output, bytes.NewReader(data), config); err != nil {
+		t.Errorf("Encryption failed: %v", err)
+	}
+	if n, err := Decrypt(decrypted, output, config); n != int64(len(data)) || err != nil {
+		t.Errorf("Decryption failed: number of bytes: %d - %v", n, err)
+	}
+	if !bytes.Equal(data, decrypted.Bytes()) {
+		t.Errorf("Failed to encrypt and decrypt data. %v | %v", data, decrypted.Bytes())
+	}
+}
+
+func TestFiles(t *testing.T) {
+
+	fileList := []string{}
+	filepath.Walk(".", func(path string, f os.FileInfo, err error) error {
+		fileList = append(fileList, path)
+		return nil
+	})
+
+	for _, file := range fileList {
+		testFile(t, file)
 	}
 }
 

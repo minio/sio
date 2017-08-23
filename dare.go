@@ -44,9 +44,9 @@ const (
 
 var (
 	errMissingHeader      = errors.New("dare: incomplete header")
-	errBadPayloadLen      = errors.New("dare: invalid payload length")
+	errPayloadTooShort    = errors.New("dare: payload too short")
 	errPackageOutOfOrder  = errors.New("dare: sequence number mismatch")
-	errTagMissmatch       = errors.New("dare: authentication failed")
+	errTagMismatch        = errors.New("dare: authentication failed")
 	errUnsupportedVersion = errors.New("dare: unsupported version")
 	errUnsupportedCipher  = errors.New("dare: unsupported cipher suite")
 )
@@ -68,8 +68,7 @@ var supportedCiphers = [...]func([]byte) (cipher.AEAD, error){
 // data. The encrypted data is written to dst. It returns the number of bytes
 // encrypted and the first error encountered while encrypting, if any.
 //
-// A successful Encrypt returns err == nil. Encrypt returns the number of bytes
-// written to dst.
+// Encrypt returns the number of bytes written to dst.
 func Encrypt(dst io.Writer, src io.Reader, config Config) (n int64, err error) {
 	encReader, err := EncryptReader(src, config)
 	if err != nil {
@@ -80,11 +79,10 @@ func Encrypt(dst io.Writer, src io.Reader, config Config) (n int64, err error) {
 
 // Decrypt reads from src until it encounters an io.EOF and decrypts all received
 // data. The decrypted data is written to dst. It returns the number of bytes
-// encrypted and the first error encountered while decrypting, if any.
+// decrypted and the first error encountered while decrypting, if any.
 //
-// A successful Decrypt returns err == nil. Decrypt returns the number of bytes
-// bytes written to dst. Decrypt only writes data to dst if the data was decrypted
-// successfully.
+// Decrypt returns the number of bytes written to dst. Decrypt only writes data to
+// dst if the data was decrypted successfully.
 func Decrypt(dst io.Writer, src io.Reader, config Config) (n int64, err error) {
 	decReader, err := DecryptReader(src, config)
 	if err != nil {
@@ -140,7 +138,7 @@ func DecryptReader(src io.Reader, config Config) (io.Reader, error) {
 // encrypts all data written to it. EncryptWriter returns an error if the
 // provided decryption configuration is invalid.
 //
-// The returned io.WriteCloser must be closed to successfully finalize the
+// The returned io.WriteCloser must be closed successfully to finalize the
 // encryption process.
 func EncryptWriter(dst io.Writer, config Config) (io.WriteCloser, error) {
 	if err := setConfigDefaults(&config); err != nil {
@@ -164,10 +162,10 @@ func EncryptWriter(dst io.Writer, config Config) (io.WriteCloser, error) {
 }
 
 // DecryptWriter wraps the given dst and returns an io.WriteCloser which
-// Decrypts all data written to it. DecryptWriter returns an error if the
+// decrypts all data written to it. DecryptWriter returns an error if the
 // provided decryption configuration is invalid.
 //
-// The returned io.WriteCloser must be closed to successfully finalize the
+// The returned io.WriteCloser must be closed successfully to finalize the
 // decryption process.
 func DecryptWriter(dst io.Writer, config Config) (io.WriteCloser, error) {
 	if err := setConfigDefaults(&config); err != nil {
@@ -264,9 +262,8 @@ func (c *Config) createCiphers() ([]cipher.AEAD, error) {
 	return ciphers, nil
 }
 
-func (c *Config) generateNonce() ([8]byte, error) {
-	var nonce [8]byte
-	_, err := io.ReadFull(c.Rand, nonce[:])
+func (c *Config) generateNonce() (nonce [8]byte, err error) {
+	_, err = io.ReadFull(c.Rand, nonce[:])
 	return nonce, err
 }
 
