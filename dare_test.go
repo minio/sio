@@ -513,16 +513,18 @@ func TestVerifySequenceNumbers(t *testing.T) {
 
 func testFile(t *testing.T, file string) {
 	data, err := ioutil.ReadFile(file)
-	if len(data) == 0 {
-		return // exit out for empty files
+	if err != nil {
+		t.Errorf("Failed to read file: %s - %v", file, err)
+	}
+	if err != nil || len(data) == 0 {
+		return // exit out for empty files or error
 	}
 
 	key, err := hex.DecodeString("000102030405060708090A0B0C0D0E0FF0E0D0C0B0A090807060504030201000")
 	if err != nil {
 		t.Fatalf("Failed to decode key: %v", err)
 	}
-	config := Config{}
-	config.Key = key
+	config := Config{Key: key}
 
 	decrypted, output := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
 
@@ -541,7 +543,9 @@ func TestFiles(t *testing.T) {
 
 	fileList := []string{}
 	filepath.Walk(".", func(path string, f os.FileInfo, err error) error {
-		fileList = append(fileList, path)
+		if !f.IsDir() {
+			fileList = append(fileList, path)
+		}
 		return nil
 	})
 
