@@ -42,14 +42,14 @@ func (w *decryptedWriter) Write(p []byte) (n int, err error) {
 		p = p[remaining:]
 		w.offset += n
 	}
-	if w.offset > 0 {
+	if w.offset >= headerSize {
 		remaining := headerSize + header(w.pack[:]).Len() + tagSize - w.offset
 		if len(p) < remaining {
 			nn := copy(w.pack[w.offset:], p)
 			w.offset += nn
 			return n + nn, err
 		}
-		n = copy(w.pack[w.offset:], p[:remaining])
+		n += copy(w.pack[w.offset:], p[:remaining])
 		if err = w.decrypt(w.pack[:]); err != nil {
 			return n, err
 		}
@@ -69,10 +69,8 @@ func (w *decryptedWriter) Write(p []byte) (n int, err error) {
 		p = p[headerSize+header.Len()+tagSize:]
 		n += headerSize + header.Len() + tagSize
 	}
-	if len(p) > 0 {
-		w.offset = copy(w.pack[:], p)
-		n += w.offset
-	}
+	w.offset = copy(w.pack[:], p)
+	n += w.offset
 	return
 }
 
@@ -82,7 +80,7 @@ func (w *decryptedWriter) Close() error {
 			return errMissingHeader
 		}
 		if w.offset < headerSize+header(w.pack[:]).Len()+tagSize {
-			return errBadPayloadLen
+			return errPayloadTooShort
 		}
 		if err := w.decrypt(w.pack[:]); err != nil {
 			return err
@@ -106,7 +104,7 @@ func (w *decryptedWriter) decrypt(src []byte) error {
 	aeadCipher := w.ciphers[header.Cipher()]
 	plaintext, err := aeadCipher.Open(w.pack[headerSize:headerSize], header[4:headerSize], src[headerSize:headerSize+header.Len()+tagSize], header[:4])
 	if err != nil {
-		return errTagMissmatch
+		return errTagMismatch
 	}
 
 	n, err := w.dst.Write(plaintext)
@@ -180,7 +178,7 @@ func (w *encryptedWriter) encrypt(src []byte) error {
 	header.SetSequenceNumber(w.sequenceNumber)
 	header.SetNonce(w.nonce)
 
-	w.cipher.Seal(w.pack[headerSize:headerSize], header[4:16], src, header[:4])
+	w.cipher.Seal(w.pack[headerSize:headerSize], header[4:headerSize], src, header[:4])
 
 	n, err := w.dst.Write(w.pack[:headerSize+len(src)+tagSize])
 	if err != nil {
