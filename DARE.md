@@ -166,6 +166,8 @@ payload_size      := little_endian_uint32(header[2:4]) + 1
 plaintext || tag  := DEC(key, header[4:16], ciphertext, header[0:4])
 
 CTC(ciphertext[len(plaintext) : len(plaintext) + 16], tag) != 1       => err_tag_mismatch
+
+expected_sequence_number = expected_sequence_number + 1
 ``` 
 
 ## Security
