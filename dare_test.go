@@ -599,6 +599,61 @@ func TestAppending(t *testing.T) {
 	}
 }
 
+type devNull struct{ zero [8 * 1024]byte }
+
+func (r *devNull) Read(p []byte) (n int, err error) {
+	if len(p) < len(r.zero) {
+		n = copy(p, r.zero[:len(p)])
+		return
+	}
+	for len(p) >= len(r.zero) {
+		n += copy(p, r.zero[:])
+		p = p[len(r.zero):]
+	}
+	if len(p) > 0 {
+		n += copy(p, r.zero[:len(p)])
+	}
+	return
+}
+
+func TestLargeStream(t *testing.T) {
+	if !testing.Short() {
+		t.Skip("Skipping TestLargeStream")
+	}
+	key := make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, key); err != nil {
+		t.Fatalf("Failed to generate random key: %v", err)
+	}
+
+	config := Config{Key: key}
+
+	encReader, err := EncryptReader(new(devNull), config)
+	if err != nil {
+		t.Fatalf("Failed to create encrypted reader %v", err)
+	}
+	decReader, err := DecryptReader(encReader, config)
+	if err != nil {
+		t.Fatalf("Failed to create decrypted reader %v", err)
+	}
+	decWriter, err := DecryptWriter(ioutil.Discard, config)
+	if err != nil {
+		t.Fatalf("Failed to create decrypted writer %v", err)
+	}
+	encWriter, err := EncryptWriter(decWriter, config)
+	if err != nil {
+		t.Fatalf("Failed to create encrypted writer %v", err)
+	}
+
+	const streamsize = 50 * 1024 * 1024 * 1024
+	buffer := make([]byte, 1024*1024+1)
+	if _, err := io.CopyBuffer(encWriter, io.LimitReader(decReader, streamsize), buffer); err != nil {
+		t.Errorf("Failed to copy data: %v", err)
+	}
+	if err = encWriter.Close(); err != nil {
+		t.Errorf("Failed to close encrypted writer: %v", err)
+	}
+}
+
 // Benchmarks
 
 func BenchmarkEncryptReader_8KB(b *testing.B)   { benchmarkEncryptRead(1024, b) }

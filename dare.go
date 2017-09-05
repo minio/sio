@@ -216,13 +216,13 @@ func setConfigDefaults(config *Config) error {
 	return nil
 }
 
-// Config contains the protocol configuration. The only field
-// which must always be set manually is the secret key
+// Config contains the format configuration. The only field
+// which must always be set manually is the secret key.
 type Config struct {
-	// The minimal supported version of the protocol. If
+	// The minimal supported version of the format. If
 	// not set the default value is used.
 	MinVersion byte
-	// The highest supported version of the protocol. If
+	// The highest supported version of the format. If
 	// not set the default value is used.
 	MaxVersion byte
 	// A list of supported cipher suites. If not set the
