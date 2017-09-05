@@ -2,6 +2,10 @@
 
 This project is currently under development and should not be used in production!
 
+[![Godoc Reference](https://godoc.org/github.com/minio/aead?status.svg)](https://godoc.org/github.com/minio/aead)
+[![Travis CI](https://travis-ci.org/minio/aead.svg?branch=master)](https://travis-ci.org/minio/aead)
+[![Go Report Card](https://goreportcard.com/badge/minio/aead)](https://goreportcard.com/report/minio/aead)
+
 # DARE to encrypt
 
 ## Introduction
