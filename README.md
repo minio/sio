@@ -40,11 +40,6 @@ en/decrypting an arbitrary data stream and gives some [recommendations](https://
 about how to use and implement data at rest encryption (DARE). Additionally this project
 provides a reference implementation in Go.  
 
-## Current status
-
-This project is under development and things are likely to change. Do not use this library
-except for research or development purposes.
-
 ## Applications
 
 DARE is designed with simplicity and efficiency in mind. It combines modern AE schemes
@@ -58,6 +53,8 @@ Its main properties are:
  - Random access - arbitrary sequences / ranges can be decrypted independently
 
 **Install:** `go get -u github.com/minio/sio`
+
+DARE and `github.com/minio/sio` are finalized and can be used in production.
 
 ## Performance
 
