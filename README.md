@@ -56,7 +56,7 @@ Its main properties are:
  - Support for long data streams - up to 256 TB under the same key  
  - Random access - arbitrary sequences / ranges can be decrypted independently
 
-**Install:** `go get -u github.com/minio/aead`
+**Install:** `go get -u github.com/minio/sio`
 
 ## Performance
 
