@@ -1,10 +1,6 @@
-## Attention
-
-This project is currently under development and should not be used in production!
-
-[![Godoc Reference](https://godoc.org/github.com/minio/aead?status.svg)](https://godoc.org/github.com/minio/aead)
-[![Travis CI](https://travis-ci.org/minio/aead.svg?branch=master)](https://travis-ci.org/minio/aead)
-[![Go Report Card](https://goreportcard.com/badge/minio/aead)](https://goreportcard.com/report/minio/aead)
+[![Godoc Reference](https://godoc.org/github.com/minio/sio?status.svg)](https://godoc.org/github.com/minio/sio)
+[![Travis CI](https://travis-ci.org/minio/sio.svg?branch=master)](https://travis-ci.org/minio/sio)
+[![Go Report Card](https://goreportcard.com/badge/minio/sio)](https://goreportcard.com/report/minio/sio)
 
 # DARE to encrypt
 
@@ -38,8 +34,8 @@ because every chunk is encrypted separately. Therefore the order of the chunks m
 encoded somehow into the chunks itself to be able to detect rearranging any number of 
 chunks.     
 
-This project specifies a [format](https://github.com/minio/aead/blob/master/DARE.md) for 
-en/decrypting an arbitrary data stream and gives some [recommendations](https://github.com/minio/aead/blob/master/DARE.md#appendix)
+This project specifies a [format](https://github.com/minio/sio/blob/master/DARE.md) for 
+en/decrypting an arbitrary data stream and gives some [recommendations](https://github.com/minio/sio/blob/master/DARE.md#appendices)
 about how to use and implement data at rest encryption (DARE). Additionally this project
 provides a reference implementation in Go.  
 
