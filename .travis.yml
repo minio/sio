@@ -1,4 +1,4 @@
-go_import_path: github.com/minio/aead
+go_import_path: github.com/minio/sio
 sudo: required
 
 dist: trusty

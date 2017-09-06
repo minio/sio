@@ -2,7 +2,8 @@
 [![Travis CI](https://travis-ci.org/minio/sio.svg?branch=master)](https://travis-ci.org/minio/sio)
 [![Go Report Card](https://goreportcard.com/badge/minio/sio)](https://goreportcard.com/report/minio/sio)
 
-# DARE to encrypt
+# Secure IO
+## Go implementation of the Data At Rest Encryption (DARE) format.
 
 ## Introduction
 

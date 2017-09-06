@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package aead implements the DARE format and provides an API for
-// en/decrypting data streams.
-package aead // import "github.com/minio/aead"
+// Package sio implements the DARE format. It provides an API
+// for secure en/decrypting IO operations.
+package sio // import "github.com/minio/sio"
 
 import (
 	"crypto/aes"
@@ -43,12 +43,12 @@ const (
 )
 
 var (
-	errMissingHeader      = errors.New("dare: incomplete header")
-	errPayloadTooShort    = errors.New("dare: payload too short")
-	errPackageOutOfOrder  = errors.New("dare: sequence number mismatch")
-	errTagMismatch        = errors.New("dare: authentication failed")
-	errUnsupportedVersion = errors.New("dare: unsupported version")
-	errUnsupportedCipher  = errors.New("dare: unsupported cipher suite")
+	errMissingHeader      = errors.New("sio: incomplete header")
+	errPayloadTooShort    = errors.New("sio: payload too short")
+	errPackageOutOfOrder  = errors.New("sio: sequence number mismatch")
+	errTagMismatch        = errors.New("sio: authentication failed")
+	errUnsupportedVersion = errors.New("sio: unsupported version")
+	errUnsupportedCipher  = errors.New("sio: unsupported cipher suite")
 )
 
 var newAesGcm = func(key []byte) (cipher.AEAD, error) {
@@ -185,20 +185,20 @@ func DecryptWriter(dst io.Writer, config Config) (io.WriteCloser, error) {
 
 func setConfigDefaults(config *Config) error {
 	if config.MinVersion > Version10 {
-		return errors.New("dare: unknown minimum version")
+		return errors.New("sio: unknown minimum version")
 	}
 	if config.MaxVersion > Version10 {
 		return errors.New("dare: unknown maximum version")
 	}
 	if len(config.Key) != 32 {
-		return errors.New("dare: invalid key size")
+		return errors.New("sio: invalid key size")
 	}
 	if len(config.CipherSuites) > 2 {
-		return errors.New("dare: too many cipher suites")
+		return errors.New("sio: too many cipher suites")
 	}
 	for _, c := range config.CipherSuites {
 		if int(c) >= len(supportedCiphers) {
-			return errors.New("dare: unknown cipher suite")
+			return errors.New("sio: unknown cipher suite")
 		}
 	}
 	if config.MinVersion < Version10 {
