@@ -188,7 +188,7 @@ func setConfigDefaults(config *Config) error {
 		return errors.New("sio: unknown minimum version")
 	}
 	if config.MaxVersion > Version10 {
-		return errors.New("dare: unknown maximum version")
+		return errors.New("sio: unknown maximum version")
 	}
 	if len(config.Key) != 32 {
 		return errors.New("sio: invalid key size")
