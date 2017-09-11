@@ -188,7 +188,7 @@ func setConfigDefaults(config *Config) error {
 		return errors.New("sio: unknown minimum version")
 	}
 	if config.MaxVersion > Version10 {
-		return errors.New("dare: unknown maximum version")
+		return errors.New("sio: unknown maximum version")
 	}
 	if len(config.Key) != 32 {
 		return errors.New("sio: invalid key size")
@@ -208,12 +208,19 @@ func setConfigDefaults(config *Config) error {
 		config.MaxVersion = config.MinVersion
 	}
 	if len(config.CipherSuites) == 0 {
-		config.CipherSuites = []byte{AES_256_GCM, CHACHA20_POLY1305}
+		config.CipherSuites = defaultCipherSuites()
 	}
 	if config.Rand == nil {
 		config.Rand = rand.Reader
 	}
 	return nil
+}
+
+func defaultCipherSuites() []byte {
+	if hasAESNISupport() {
+		return []byte{AES_256_GCM, CHACHA20_POLY1305}
+	}
+	return []byte{CHACHA20_POLY1305, AES_256_GCM}
 }
 
 // Config contains the format configuration. The only field
