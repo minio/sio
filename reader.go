@@ -27,8 +27,9 @@ type encryptedReader struct {
 	nonce          [8]byte
 	cipher         cipher.AEAD
 
-	pack   [headerSize + payloadSize + tagSize]byte
-	offset int
+	pack        [headerSize + payloadSize + tagSize]byte
+	payloadSize int
+	offset      int
 }
 
 func (r *encryptedReader) Read(p []byte) (n int, err error) {
@@ -43,8 +44,8 @@ func (r *encryptedReader) Read(p []byte) (n int, err error) {
 		p = p[remaining:]
 		r.offset = 0
 	}
-	for len(p) >= headerSize+payloadSize+tagSize {
-		nn, err := io.ReadFull(r.src, r.pack[headerSize:headerSize+payloadSize])
+	for len(p) >= headerSize+r.payloadSize+tagSize {
+		nn, err := io.ReadFull(r.src, r.pack[headerSize:headerSize+r.payloadSize])
 		if err != nil && err != io.ErrUnexpectedEOF {
 			return n, err
 		}
@@ -53,7 +54,7 @@ func (r *encryptedReader) Read(p []byte) (n int, err error) {
 		p = p[headerSize+nn+tagSize:]
 	}
 	if len(p) > 0 {
-		nn, err := io.ReadFull(r.src, r.pack[headerSize:headerSize+payloadSize])
+		nn, err := io.ReadFull(r.src, r.pack[headerSize:headerSize+r.payloadSize])
 		if err != nil && err != io.ErrUnexpectedEOF {
 			return n, err
 		}
