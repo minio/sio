@@ -127,31 +127,32 @@ type encryptedWriter struct {
 	sequenceNumber uint32
 	cipher         cipher.AEAD
 
-	pack   [headerSize + payloadSize + tagSize]byte
-	offset int
+	pack        [headerSize + payloadSize + tagSize]byte
+	payloadSize int
+	offset      int
 }
 
 func (w *encryptedWriter) Write(p []byte) (n int, err error) {
 	if w.offset > 0 {
-		remaining := payloadSize - w.offset
+		remaining := w.payloadSize - w.offset
 		if len(p) < remaining {
 			n = copy(w.pack[headerSize+w.offset:], p)
 			w.offset += n
 			return
 		}
 		n = copy(w.pack[headerSize+w.offset:], p[:remaining])
-		if err = w.encrypt(w.pack[headerSize : headerSize+payloadSize]); err != nil {
+		if err = w.encrypt(w.pack[headerSize : headerSize+w.payloadSize]); err != nil {
 			return
 		}
 		p = p[remaining:]
 		w.offset = 0
 	}
-	for len(p) >= payloadSize {
-		if err = w.encrypt(p[:payloadSize]); err != nil {
+	for len(p) >= w.payloadSize {
+		if err = w.encrypt(p[:w.payloadSize]); err != nil {
 			return
 		}
-		p = p[payloadSize:]
-		n += payloadSize
+		p = p[w.payloadSize:]
+		n += w.payloadSize
 	}
 	if len(p) > 0 {
 		w.offset = copy(w.pack[headerSize:], p)

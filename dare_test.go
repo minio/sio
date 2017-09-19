@@ -27,42 +27,56 @@ import (
 )
 
 var ioTests = []struct {
-	datasize, buffersize int
+	datasize, buffersize, payloadsize int
 }{
-	{datasize: 1, buffersize: 1},                                        // 0
-	{datasize: 2, buffersize: 1},                                        // 1
-	{datasize: payloadSize - 1, buffersize: 1},                          // 2
-	{datasize: payloadSize, buffersize: 1},                              // 3
-	{datasize: payloadSize + 1, buffersize: 1},                          // 4
-	{datasize: 1, buffersize: headerSize},                               // 5
-	{datasize: 1024, buffersize: headerSize},                            // 6
-	{datasize: payloadSize - 1, buffersize: headerSize},                 // 7
-	{datasize: payloadSize, buffersize: headerSize},                     // 8
-	{datasize: payloadSize + 1, buffersize: headerSize},                 // 9
-	{datasize: 1, buffersize: payloadSize},                              // 10
-	{datasize: 32 * 1024, buffersize: payloadSize},                      // 11
-	{datasize: payloadSize - 1, buffersize: payloadSize},                // 12
-	{datasize: payloadSize, buffersize: payloadSize},                    // 13
-	{datasize: payloadSize + 1, buffersize: payloadSize},                // 14
-	{datasize: 1, buffersize: payloadSize + tagSize},                    // 15
-	{datasize: 7 * 1024, buffersize: payloadSize + tagSize},             // 16
-	{datasize: payloadSize - 1, buffersize: payloadSize + tagSize},      // 17
-	{datasize: payloadSize, buffersize: payloadSize + tagSize},          // 18
-	{datasize: payloadSize + 1, buffersize: payloadSize + tagSize},      // 19
-	{datasize: 1, buffersize: headerSize + payloadSize + tagSize},       // 20
-	{datasize: 2 * payloadSize, buffersize: payloadSize + tagSize},      // 21
-	{datasize: 2*payloadSize - 1, buffersize: payloadSize + tagSize},    // 22
-	{datasize: 2*payloadSize + 1, buffersize: payloadSize + tagSize},    // 23
-	{datasize: 2*payloadSize + 1024, buffersize: payloadSize + tagSize}, // 24
-	{datasize: 1, buffersize: payloadSize + 1},                          // 25
-	{datasize: 2 * payloadSize, buffersize: payloadSize + 1},            // 26
-	{datasize: 1024*1024 - 1, buffersize: payloadSize + 1},              // 27
-	{datasize: 1024 * 1024, buffersize: payloadSize + 1},                // 28
-	{datasize: 1024*1024 + 1, buffersize: payloadSize + 1},              // 29
-	{datasize: 2 * payloadSize, buffersize: 1024 * 1024},                // 30
-	{datasize: 3*payloadSize + 1, buffersize: 3 * payloadSize},          // 31
-	{datasize: 1024 * 1024, buffersize: 2 * 1024 * 1024},                // 32
-	{datasize: payloadSize + 1, buffersize: payloadSize - 1},            // 33
+	{datasize: 1, buffersize: 1, payloadsize: payloadSize},                                        // 0
+	{datasize: 2, buffersize: 1, payloadsize: payloadSize},                                        // 1
+	{datasize: payloadSize - 1, buffersize: 1, payloadsize: payloadSize},                          // 2
+	{datasize: payloadSize, buffersize: 1, payloadsize: payloadSize},                              // 3
+	{datasize: payloadSize + 1, buffersize: 1, payloadsize: payloadSize},                          // 4
+	{datasize: 1, buffersize: headerSize, payloadsize: payloadSize},                               // 5
+	{datasize: 1024, buffersize: headerSize, payloadsize: payloadSize},                            // 6
+	{datasize: payloadSize - 1, buffersize: headerSize, payloadsize: payloadSize},                 // 7
+	{datasize: payloadSize, buffersize: headerSize, payloadsize: payloadSize},                     // 8
+	{datasize: payloadSize + 1, buffersize: headerSize, payloadsize: payloadSize},                 // 9
+	{datasize: 1, buffersize: payloadSize, payloadsize: payloadSize},                              // 10
+	{datasize: 32 * 1024, buffersize: payloadSize, payloadsize: payloadSize},                      // 11
+	{datasize: payloadSize - 1, buffersize: payloadSize, payloadsize: payloadSize},                // 12
+	{datasize: payloadSize, buffersize: payloadSize, payloadsize: payloadSize},                    // 13
+	{datasize: payloadSize + 1, buffersize: payloadSize, payloadsize: payloadSize},                // 14
+	{datasize: 1, buffersize: payloadSize + tagSize, payloadsize: payloadSize},                    // 15
+	{datasize: 7 * 1024, buffersize: payloadSize + tagSize, payloadsize: payloadSize},             // 16
+	{datasize: payloadSize - 1, buffersize: payloadSize + tagSize, payloadsize: payloadSize},      // 17
+	{datasize: payloadSize, buffersize: payloadSize + tagSize, payloadsize: payloadSize},          // 18
+	{datasize: payloadSize + 1, buffersize: payloadSize + tagSize, payloadsize: payloadSize},      // 19
+	{datasize: 1, buffersize: headerSize + payloadSize + tagSize, payloadsize: payloadSize},       // 20
+	{datasize: 2 * payloadSize, buffersize: payloadSize + tagSize, payloadsize: payloadSize},      // 21
+	{datasize: 2*payloadSize - 1, buffersize: payloadSize + tagSize, payloadsize: payloadSize},    // 22
+	{datasize: 2*payloadSize + 1, buffersize: payloadSize + tagSize, payloadsize: payloadSize},    // 23
+	{datasize: 2*payloadSize + 1024, buffersize: payloadSize + tagSize, payloadsize: payloadSize}, // 24
+	{datasize: 1, buffersize: payloadSize + 1, payloadsize: payloadSize},                          // 25
+	{datasize: 2 * payloadSize, buffersize: payloadSize + 1, payloadsize: payloadSize},            // 26
+	{datasize: 1024*1024 - 1, buffersize: payloadSize + 1, payloadsize: payloadSize},              // 27
+	{datasize: 1024 * 1024, buffersize: payloadSize + 1, payloadsize: payloadSize},                // 28
+	{datasize: 1024*1024 + 1, buffersize: payloadSize + 1, payloadsize: payloadSize},              // 29
+	{datasize: 2 * payloadSize, buffersize: 1024 * 1024, payloadsize: payloadSize},                // 30
+	{datasize: 3*payloadSize + 1, buffersize: 3 * payloadSize, payloadsize: payloadSize},          // 31
+	{datasize: 1024 * 1024, buffersize: 2 * 1024 * 1024, payloadsize: payloadSize},                // 32
+	{datasize: payloadSize + 1, buffersize: payloadSize - 1, payloadsize: payloadSize},            // 33
+	{datasize: 1, buffersize: 1, payloadsize: 8 * 1024},                                           // 34
+	{datasize: 2, buffersize: 1, payloadsize: 16 * 1024},                                          // 35
+	{datasize: payloadSize - 1, buffersize: 1, payloadsize: 8 * 1024},                             // 36
+	{datasize: payloadSize, buffersize: 1, payloadsize: 16 * 1024},                                // 37
+	{datasize: payloadSize + 1, buffersize: 1, payloadsize: 32 * 1024},                            // 38
+	{datasize: 2 * payloadSize, buffersize: payloadSize + 1, payloadsize: 32 * 1024},              // 39
+	{datasize: 1024*1024 - 1, buffersize: payloadSize + 1, payloadsize: 32 * 1024},                // 40
+	{datasize: 1024 * 1024, buffersize: payloadSize + 1, payloadsize: 32 * 1024},                  // 41
+	{datasize: 1024*1024 + 1, buffersize: payloadSize + 1, payloadsize: 32 * 1024},                // 42
+	{datasize: 2 * payloadSize, buffersize: 1024 * 1024, payloadsize: 32 * 1024},                  // 43
+	{datasize: 3*payloadSize + 1, buffersize: 3 * payloadSize, payloadsize: 1 + 32*1024},          // 44
+	{datasize: 1024 * 1024, buffersize: 2 * 1024 * 1024, payloadsize: 2 + 32*1024},                // 45
+	{datasize: payloadSize + 1, buffersize: payloadSize - 1, payloadsize: 3 + 32*1024},            // 46
+
 }
 
 func dumpDareStream(strm []byte) {

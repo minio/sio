@@ -112,6 +112,7 @@ func EncryptReader(src io.Reader, config Config) (io.Reader, error) {
 		nonce:          nonce,
 		cipher:         cipher,
 		sequenceNumber: config.SequenceNumber,
+		payloadSize:    config.PayloadSize,
 	}, nil
 }
 
@@ -158,6 +159,7 @@ func EncryptWriter(dst io.Writer, config Config) (io.WriteCloser, error) {
 		nonce:          nonce,
 		cipher:         cipher,
 		sequenceNumber: config.SequenceNumber,
+		payloadSize:    config.PayloadSize,
 	}, nil
 }
 
@@ -201,6 +203,10 @@ func setConfigDefaults(config *Config) error {
 			return errors.New("sio: unknown cipher suite")
 		}
 	}
+
+	if config.PayloadSize > payloadSize {
+		return errors.New("sio: payload size is too large")
+	}
 	if config.MinVersion < Version10 {
 		config.MinVersion = Version10
 	}
@@ -212,6 +218,9 @@ func setConfigDefaults(config *Config) error {
 	}
 	if config.Rand == nil {
 		config.Rand = rand.Reader
+	}
+	if config.PayloadSize == 0 {
+		config.PayloadSize = payloadSize
 	}
 	return nil
 }
@@ -229,22 +238,33 @@ type Config struct {
 	// The minimal supported version of the format. If
 	// not set the default value is used.
 	MinVersion byte
+
 	// The highest supported version of the format. If
 	// not set the default value is used.
 	MaxVersion byte
+
 	// A list of supported cipher suites. If not set the
 	// default value is used.
 	CipherSuites []byte
+
 	// The secret encryption key. It must be 32 bytes long.
 	Key []byte
+
 	// The first expected sequence number. It should only
 	// be set manually when appending data to an existing
 	// sequence of packages or decrypting a range within
 	// a sequence of packages.
 	SequenceNumber uint32
+
 	// The RNG used to generate random values. If not set
 	// the default value (crypto/rand.Reader) is used.
 	Rand io.Reader
+
+	// The size of the encrypted payload in bytes. The
+	// default value is 64KB. It should be used to restrict
+	// the size of encrypted packages. The payload size
+	// must be between 1 and 64 KB.
+	PayloadSize int
 }
 
 func (c *Config) verifyHeader(header headerV10) error {
