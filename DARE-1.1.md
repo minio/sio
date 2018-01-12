@@ -57,11 +57,11 @@ reasons. DARE 1.0 is marked as deprecated.
   starting at i (inclusive) up to j (exclusive).
 - <code>max(X,Y)</code>: Returns X if `X > Y`. Otherwise it returns Y.
 
-All numbers are represented using the little endian byte order.
+All numbers are represented using the little-endian byte order.
 
 ## 3. Specification
 
-A encrypted data stream `S` is represented as a sequence of <code>0 < n ≤
+An encrypted data stream `S` is represented as a sequence of <code>0 < n ≤
 2<sup>32</sup></code> packages. Each package <code>P<sub>i</sub></code> consists of
 a 16 byte header <code>H<sub>i</sub></code>, a payload <code>A<sub>i</sub></code>
 and a 16 byte authentication tag <code>T<sub>i</sub></code>. All payloads are 65536
