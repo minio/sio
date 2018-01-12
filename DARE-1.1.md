@@ -21,16 +21,16 @@ secret key and cipher is fixed per data stream - so each package of an encrypted
 data stream is encrypted with the same cipher and secret key. On the other side
 the encryption *nonce* of each package is unique within a sequence of packages.
 Even tough DARE contains some safety net against accidental key reuse it expects 
-the secret key to be unique per data stream.
+that the secret key is unique per data stream.
 
 If the secret encryption key is unique DARE provides confidentially and integrity
 assuming the underlying AEAD cipher is secure. Furthermore it provides random access
 and the encryption / decryption is parallelizable. In contrast to an AEAD cipher -
 like AES-GCM - every package is decrypted separately which avoids buffering of the
-decrypted data until the authentication tag is verified. This effects especially 
-long data streams. If the secret encryption key is ever reused DARE loses its
-integrity property. However confidentially can still be achieved to some extend but
-this depends on the length and number of encrypted data streams.
+decrypted data until the authentication tag is verified. This plays a role 
+especially for long data streams. If the secret encryption key is ever reused DARE 
+loses its integrity property. However confidentially can still be achieved to some 
+extend but this depends on the length and number of encrypted data streams.
 
 ### 1.1 Major differences from DARE 1.0
 
@@ -50,10 +50,12 @@ reasons. DARE 1.0 is marked as deprecated.
 
 ## 2. Notation
 
+- <code>X||Y</code>: Returns the concatenation of X and Y.
 - <code>|X|</code>: Returns the length of the byte sequence X as the number of bytes.
 - <code>X[i]</code>: Returns the i-th byte of the byte sequence X. 
 - <code>X[i:j]</code>: Returns the sub-sequence of bytes from the byte sequence X
   starting at i (inclusive) up to j (exclusive).
+- <code>max(X,Y)</code>: Returns X if `X > Y`. Otherwise it returns Y.
 
 All numbers are represented using the little endian byte order.  
 
@@ -121,7 +123,7 @@ R</code>.
 5. Generate the ciphertext and authentication tag
 <code>c<sub>i</sub>,t<sub>i</sub> = E(K, N<sub>i</sub>, m<sub>i</sub>,
 a<sub>i</sub>)</code>.
-6. <code>P<sub>i</sub> = H<sub>i</sub> || c<sub>i</sub> || t<sub>i</sub></code>
+6. The i-th package <code>P<sub>i</sub> = H<sub>i</sub> || c<sub>i</sub> || t<sub>i</sub></code>
 
 ### 3.3 Decryption
 
@@ -170,10 +172,12 @@ secure - in particular:
    key is not known than the ciphertext does not reveal anything about the plaintext
    except its length.
  - If the combination of secret key and encryption nonce is unique and the secret
-   key is not known than the probability for a successful package forgery is
-   smaller than: <code>c * (N / 2<sup>128</sup>)</code> where `N` is the total 
-   number of packages and `c` is a constant much smaller than 2<sup>128</sup>
-   depending on the cipher.
+   key is not known than the probability <code>Pr<sub>f</sub>(C)</code> for a 
+   successful package forgery is: 
+    - <code>Pr<sub>f</sub>(C) = N<sup>2</sup> * 2<sup>116</sup> - N * 2<sup>89</sup> - N * 2<sup>128</sup></code> if `C` is AES-256_GCM
+    - <code>Pr<sub>f</sub>(C) = ((1 - N/2<sup>128</sup>)<sup>-(1+N)/2</sup> * 32768) / 2<sup>106</sup></code> if `C` is CHACHA20_POLY1305
+
+   where `N` is the total number of packages.
 
 Further the security properties of DARE depend on whether the secret key is unique
 or is reused to encrypt two different data streams. Therefore DARE makes two 
@@ -181,15 +185,15 @@ different security claims:
 1. If the secret key is unique per data stream an adversary is not able to learn
    anything about a plaintext without breaking the assumed security properties of
    the AEAD cipher. Furthermore any modification of a data stream by an adversary
-   is detected with a probability <code>P ≥ 1 - (c * N / 2<sup>128</sup>)</code>
-   where `N` is the total number of packages and `c` is a constant much smaller 
-   than 2<sup>128</sup>.
+   is detected with a probability <code>P ≥ 1 - Pr<sub>f</sub>(C)</code>.
 2. If a specific secret key is used to encrypt `k` data streams an adversary is not
-   able to learn anything about a plaintext with a probability <code>P > 1 - 
+   able to learn anything about a plaintext with a probability <code>P ≥ 1 - 
    e<sup>-k<sup>2</sup> / 2 * 2<sup>56</sup></sup></code> without breaking the 
-   assumed security properties of the AEAD ciphers.
+   assumed security properties of the AEAD ciphers. Furthermore any modification of 
+   a data stream by an adversary is detected with a probability 
+   <code>P ≥ 1 - max(Pr<sub>f</sub>(C) , e<sup>-k<sup>2</sup> / 2 * 2<sup>56</sup></sup>)</code>.
 
-***Lemma 1:*** *Withing one sequence of <code>0 < n ≤ 2<sup>32</sup></code> packages
+***Lemma 1:*** *Within one sequence of <code>0 < n ≤ 2<sup>32</sup></code> packages
 the encryption nonce `N` is unique.*  
 The encryption nonce is defined as <code>∀ i < n: N<sub>i</sub> = R ⊕ i</code>. 
 Since `i` is strictly monotonously incremented for each package it is implied that
@@ -203,9 +207,9 @@ key `K` is used to encrypt `k` sequences than the probability of a collision of
 A collision of <code>K || N<sub>k,i</sub></code> can only appear for two different
 values of `k` because of *Lemma 1*. That means that a collision of
 <code>K || N<sub>k,i</sub></code> implies a collision of the random value:
-<code>∃ a,b ∊ k:  R<sub>a</sub> = R<sub>b</sub></code>. In the worst case all `k`
-sequences consists of 2<sup>32</sup> packages which implies that the last 32 bits 
-of the encryption nonce takes each possible value once:
+<code>∃ a,b ∊ k, a ≠ b :  R<sub>a</sub> = R<sub>b</sub></code>. In the worst case
+all `k`sequences consists of 2<sup>32</sup> packages which implies that the last 32 
+bits of the encryption nonce takes each possible value once:
 <code>∀ i < n, ∃! j < 2<sup>32</sup>: N[7:11]<sub>i</sub> = j</code> which implies
 <code>∀ a,b ∊ k, ∃! i,j < 2<sup>32</sup>: N[7:11]<sub>a,i</sub> = N[7:11]<sub>b,j</sub></code>.  
 That means that the last 32 bits of `R` have no impact whether `K || N` is unique
@@ -234,11 +238,10 @@ If the secret key `K` is unique per encrypted data stream the combination of
 `K || N` is unique per package because of *Lemma 1*. That implies that an
 adversary is not able to learn anything about a plaintext without breaking the
 assumed security properties of the AEAD cipher. Additionally the probability
-of a successfully package forgery is smaller than 
-<code>c * N / 2<sup>128</sup></code> where `N` is the total number of packages
-and `c` is a constant much smaller than 2<sup>128</sup>. This directly follows 
-from the assumed security properties of the AEAD cipher. If the secret key `K`
-is unique per encrypted data stream the encrypted data stream is tamper-proof.
+of a successfully package forgery is smaller than <code>Pr<sub>f</sub>(C)</code>. 
+This directly follows from the assumed security properties of the AEAD cipher. If 
+the secret key `K` is unique per encrypted data stream the encrypted data stream is 
+tamper-proof.
 
 ## 5. Implementation
 
