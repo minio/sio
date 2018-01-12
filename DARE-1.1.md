@@ -9,7 +9,7 @@ In general DARE splits an arbitrarily long data stream into smaller chunks and
 encrypts each chunk separately with an authenticated encryption scheme (*AEAD*).
 Therefore every chunk is extended with a *header* and an *authentication tag* to
 build a *package*. The header is 16 bytes long and contains some metadata about
-the package like a version number and cipher id. The data chunk itself is the
+the package like a version number and cipher ID. The data chunk itself is the
 package payload and is 65536 bytes long. The only exception is the payload of the
 last package which can be shorter. The authentication tag is also 16 bytes long.
 
@@ -62,12 +62,13 @@ All numbers are represented using the little-endian byte order.
 ## 3. Specification
 
 An encrypted data stream `S` is represented as a sequence of <code>0 < n ≤
-2<sup>32</sup></code> packages. Each package <code>P<sub>i</sub></code> consists of
-a 16 byte header <code>H<sub>i</sub></code>, a payload <code>A<sub>i</sub></code>
-and a 16 byte authentication tag <code>T<sub>i</sub></code>. All payloads are 65536
-bytes long. The only exception is the payload of the last package -
-<code>A<sub>n-1</sub></code> which can be shorter:
-<code>65536 ≥ |A<sub>n-1</sub>| > 0</code>.
+2<sup>32</sup></code> packages. The `i-`th (<code>0 ≤ i < n</code>) package
+<code>P<sub>i</sub></code> consists of a 16 byte header
+<code>H<sub>i</sub></code>, a payload <code>A<sub>i</sub></code> and a 16 byte
+authentication tag <code>T<sub>i</sub></code>. All payloads are 65536 bytes
+long. The only exception is the payload of the last package -
+<code>A<sub>n-1</sub></code> which can be shorter: <code>65536 ≥
+|A<sub>n-1</sub>| > 0</code>.
 
 Header   | Payload         | Tag
 ---------|-----------------|---------
