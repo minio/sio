@@ -85,7 +85,7 @@ The package header <code>H<sub>i</sub></code> contains the metadata of the packa
   <code>L<sub>i</sub></code> is defined as:
   <code>L<sub>i</sub> = |A<sub>i</sub>| - 1</code>.
   This ensures that the maximum payload size (64 KiB) can be stored using only two
-  bytes as uint16.
+  bytes as an unsigned 16-bit integer.
  - **Final flag** - The final flag <code>F<sub>i</sub></code>.
    The final flag is zero for all packages except for the last one:
    <code>∀ F<sub>i</sub>, i < n-1: F<sub>i</sub> = 0x00</code>.
