@@ -3,9 +3,9 @@
 ## 1. Introduction
 
 This document describes the Data At Rest Encryption (DARE) format version 1.1.
-DARE defines an authenticated encryption scheme for arbitrary long data streams.
+DARE defines an authenticated encryption scheme for arbitrarily long data streams.
 
-In general DARE splits an arbitrary long data stream into smaller chunks and
+In general DARE splits an arbitrarily long data stream into smaller chunks and
 encrypts each chunk separately with an authenticated encryption scheme (*AEAD*).
 Therefore every chunk is extended with a *header* and an *authentication tag* to
 build a *package*. The header is 16 bytes long and contains some metadata about
@@ -14,8 +14,8 @@ package payload and is 65536 bytes long. The only exception is the payload of th
 last package which can be shorter. The authentication tag is also 16 bytes long.
 
 An encrypted data stream contains up to 2<sup>32</sup> packages and each package
-can contain a 64 KB payload. This implies that the longest encrypted data stream
-can be 2<sup>48</sup> bytes (256 TB) long.
+can contain a 64 KiB payload. This implies that the longest encrypted data stream
+can be 2<sup>48</sup> bytes (256 TiB) long.
 DARE encrypts a data stream using a 256 bit secret key and an AEAD cipher. The
 secret key and cipher is fixed per data stream - so each package of an encrypted
 data stream is encrypted with the same cipher and secret key. On the other side
@@ -23,14 +23,14 @@ the encryption *nonce* of each package is unique within a sequence of packages.
 Even tough DARE contains some safety net against accidental key reuse it expects
 that the secret key is unique per data stream.
 
-If the secret encryption key is unique DARE provides confidentially and integrity
+If the secret encryption key is unique DARE provides confidentiality and integrity
 assuming the underlying AEAD cipher is secure. Furthermore it provides random access
 and the encryption / decryption is parallelizable. In contrast to an AEAD cipher -
 like AES-GCM - every package is decrypted separately which avoids buffering of the
 decrypted data until the authentication tag is verified. This plays a role
 especially for long data streams. If the secret encryption key is ever reused DARE
-loses its integrity property. However confidentially can still be achieved to some
-extend but this depends on the length and number of encrypted data streams.
+loses its integrity property. However confidentiality can still be achieved to some
+extent but this depends on the length and number of encrypted data streams.
 
 ### 1.1 Major differences from DARE 1.0
 
@@ -69,9 +69,9 @@ bytes long. The only exception is the payload of the last package -
 <code>A<sub>n-1</sub></code> which can be shorter:
 <code>65536 ≥ |A<sub>n-1</sub>| > 0</code>.
 
-Header   | Payload        | Tag
----------|----------------|---------
-16 bytes | 1 byte - 64 KB | 16 bytes
+Header   | Payload         | Tag
+---------|-----------------|---------
+16 bytes | 1 byte - 64 KiB | 16 bytes
 
 ### 3.1 Header
 
@@ -84,7 +84,7 @@ The package header <code>H<sub>i</sub></code> contains the metadata of the packa
  - **Payload size** - The length of the payload <code>L<sub>i</sub></code>.
   <code>L<sub>i</sub></code> is defined as:
   <code>L<sub>i</sub> = |A<sub>i</sub>| - 1</code>.
-  This ensures that the maximum payload size (64 KB) can be stored using only two
+  This ensures that the maximum payload size (64 KiB) can be stored using only two
   bytes as uint16.
  - **Final flag** - The final flag <code>F<sub>i</sub></code>.
    The final flag is zero for all packages except for the last one:
