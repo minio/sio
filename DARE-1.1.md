@@ -100,7 +100,7 @@ Version | Cipher ID | Payload size     | Final flag | Random
 --------|-----------|------------------|------------|---------
 1 byte  |  1 byte   | 2 bytes / uint16 |   1 byte   | 11 bytes
 
-DARE 1.1 supports two different AEAD ciphers defined by the cipher id:
+DARE 1.1 supports two different AEAD ciphers defined by the cipher ID:
 
 Cipher            | Value
 ------------------|-------
@@ -110,8 +110,8 @@ CHACHA20_POLY1305 | 0x01
 ### 3.2 Encryption
 
 DARE encrypts a data stream `M` by splitting `M` into `n` data chunks <code>m<sub>i</sub></code>. Therefore DARE takes as input:
-- an unique 256 bit secret key `K`.
-- an AEAD cipher specified by a cipher id `C`.
+- a unique 256 bit secret key `K`.
+- an AEAD cipher specified by a cipher ID `C`.
 - a 11 byte value `R` chosen uniformly at random.
 
 The encryption is defined as:
@@ -130,7 +130,7 @@ a<sub>i</sub>)</code>.
 
 DARE decrypts a sequence of `n` packages by decrypting the every package
 <code>P<sub>i</sub></code> and building a data stream out of `n` data chunks
-<code>m<sub>i</sub></code>. Therefore DARE takes as input only an unique 256 bit
+<code>m<sub>i</sub></code>. Therefore DARE takes as input only a unique 256 bit
 secret key `K`.
 
 The decryption is defined as:
@@ -145,7 +145,7 @@ The decryption is defined as:
    Fail otherwise.
 2. Let the additional data be <code>a<sub>i</sub> = H<sub>i</sub>[0:4]</code>
 3. Let the nonce be <code>N<sub>i</sub> = H<sub>i</sub>[4:16] ⊕ i</code>.
-4. Let the AEAD cipher `(E,D)` be fixed by the cipher id <code>C<sub>i</sub></code>.
+4. Let the AEAD cipher `(E,D)` be fixed by the cipher ID <code>C<sub>i</sub></code>.
 5. Generate the plaintext and the authentication tag
    <code>p<sub>i</sub>,t<sub>i</sub> = D(K, N<sub>i</sub>, A<sub>i</sub>,
    a<sub>i</sub>)</code>.
@@ -167,13 +167,13 @@ to en/decrypt packages in parallel.
 
 ## 4. Security
 
-The security considerations of DARE assumes that the underlying AEAD cipher is
+The security considerations of DARE assume that the underlying AEAD cipher is
 secure - in particular:
  - If the combination of secret key and encryption nonce is unique and the secret
-   key is not known than the ciphertext does not reveal anything about the plaintext
+   key is not known then the ciphertext does not reveal anything about the plaintext
    except its length.
  - If the combination of secret key and encryption nonce is unique and the secret
-   key is not known than the probability <code>Pr<sub>f</sub>(C)</code> for a
+   key is not known then the probability <code>Pr<sub>f</sub>(C)</code> for a
    successful package forgery is:
     - <code>Pr<sub>f</sub>(C) = N<sup>2</sup> * 2<sup>116</sup> - N * 2<sup>89</sup> - N * 2<sup>128</sup></code> if `C` is AES-256_GCM
     - <code>Pr<sub>f</sub>(C) = ((1 - N/2<sup>128</sup>)<sup>-(1+N)/2</sup> * 32768) / 2<sup>106</sup></code> if `C` is CHACHA20_POLY1305
@@ -202,7 +202,7 @@ Since `i` is strictly monotonously incremented for each package it is implied th
 
 ***Lemma 2:*** *If the random value `R` of every sequence of <code>0 < n ≤
 2<sup>32</sup></code> packages is chosen uniformly at random and a fixed secret
-key `K` is used to encrypt `k` sequences than the probability of a collision of
+key `K` is used to encrypt `k` sequences then the probability of a collision of
 <code>K || N<sub>k,i</sub></code> is smaller than
 <code>1 - e<sup>-k<sup>2</sup> / 2 * 2<sup>56</sup></sup></code>*.
 A collision of <code>K || N<sub>k,i</sub></code> can only appear for two different
@@ -257,6 +257,7 @@ generator (CRSPRNG) should be used to generate `R`. Most operating systems
 already provide such a CRSPRNG - like `/dev/urandom` under linux. Furthermore
 many programming languages provide an easy-to-use interface to access a
 platform-specific CRSPRNG.
+
 Often programming languages provide an additional random number generator
 (RNG) - often in the context of math package/library - which is not designed
 to be cryptographically-secure and therefore must not be used.
@@ -264,22 +265,23 @@ to be cryptographically-secure and therefore must not be used.
 ### 5.2 Side channels
 
 The decrypted payload of a package should never be processed before the
-authentication  tag of the package is not verified. Any decrypted but not
-yet verified data could be modified by an adversary. Additionally the
-authentication tag should be verified using a constant-time comparison
-to prevent a timing side channel. This is ideally done by the AEAD cipher
+authentication tag of the package is verified. Any such decrypted but as yet
+un-verified data could have been modified by an adversary. Additionally, the
+authentication tag should be verified using a constant-time comparison to
+prevent a timing side channel. This is ideally done by the AEAD cipher
 implementation itself.
 
 ## 6. Secret key
 
 The secret key should be unique per encrypted data stream. Since it is 256 bits
-long the probability of choosing a specific key more than once is negligible
-(<code>< ~2<sup>-128</sup></code>) if the secret key is chosen uniformly at
-random. There are multiple ways to choose a secret key:
+long, the probability of choosing a previously used key again is negligible
+(<code>< ~2<sup>-128</sup></code>, see [birthday
+attack](https://en.wikipedia.org/wiki/Birthday_attack)) if the secret key is
+chosen uniformly at random. There are multiple ways to choose a secret key:
 
 - The secret key can be derived from a master key using a cryptographic hash
   function - like SHA3 or BLAKE2. This approach requires an additional parameter
-  like a counter or a random value to derive an unique key. For example:
+  like a counter or a random value to derive a unique key. For example:
   1. Generate a random value `I` of at least 256 bits using a CRSPRNG.
   2. Derive the secret key `K` from the master key <code>K<sub>m</sub></code>
      like <code>K = H(K<sub>m</sub>, I)</code> where `H` is a keyed
