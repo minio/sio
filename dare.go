@@ -26,8 +26,12 @@ import (
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
-// Version10 specifies version 1.0
-const Version10 byte = 0x10
+const (
+	// Version11 specifies version 1.1
+	Version11 byte = 0x11
+	// Version10 specifies version 1.0
+	Version10 byte = 0x10
+)
 
 const (
 	// AES_256_GCM specifies the cipher suite AES-GCM with 256 bit keys.
@@ -141,7 +145,12 @@ func EncryptWriter(dst io.Writer, config Config) (io.WriteCloser, error) {
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
 	}
-	return encryptWriterV10(dst, &config)
+	switch config.MaxVersion {
+	default:
+		return encryptWriterV10(dst, &config)
+	case Version11:
+		return encryptWriterV11(dst, &config)
+	}
 }
 
 // DecryptWriter wraps the given dst and returns an io.WriteCloser which
@@ -154,7 +163,12 @@ func DecryptWriter(dst io.Writer, config Config) (io.WriteCloser, error) {
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
 	}
-	return decryptWriterV10(dst, &config)
+	switch config.MaxVersion {
+	default:
+		return decryptWriterV10(dst, &config)
+	case Version11:
+		return decryptWriterV11(dst, &config)
+	}
 }
 
 func defaultCipherSuites() []byte {
@@ -168,7 +182,7 @@ func setConfigDefaults(config *Config) error {
 	if config.MinVersion > Version10 {
 		return errors.New("sio: unknown minimum version")
 	}
-	if config.MaxVersion > Version10 {
+	if config.MaxVersion > 0x11 {
 		return errors.New("sio: unknown maximum version")
 	}
 	if len(config.Key) != 32 {
