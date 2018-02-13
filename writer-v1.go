@@ -19,20 +19,19 @@ import (
 	"io"
 )
 
-type decryptedWriter struct {
-	dst    io.Writer
-	config Config
+type decryptedWriterV10 struct {
+	dst io.Writer
 
 	sequenceNumber uint32
-	ciphers        []cipher.AEAD
+	ciphers        [2]cipher.AEAD
 
-	pack   [headerSize + payloadSize + tagSize]byte
+	pack   [headerSizeV10 + maxPayloadSizeV10 + tagSizeV10]byte
 	offset int
 }
 
-func (w *decryptedWriter) Write(p []byte) (n int, err error) {
-	if w.offset > 0 && w.offset < headerSize {
-		remaining := headerSize - w.offset
+func (w *decryptedWriterV10) Write(p []byte) (n int, err error) {
+	if w.offset > 0 && w.offset < headerSizeV10 {
+		remaining := headerSizeV10 - w.offset
 		if len(p) < remaining {
 			n = copy(w.pack[w.offset:], p)
 			w.offset += n
@@ -42,8 +41,8 @@ func (w *decryptedWriter) Write(p []byte) (n int, err error) {
 		p = p[remaining:]
 		w.offset += n
 	}
-	if w.offset >= headerSize {
-		remaining := headerSize + header(w.pack[:]).Len() + tagSize - w.offset
+	if w.offset >= headerSizeV10 {
+		remaining := headerSizeV10 + header(w.pack[:]).Len() + tagSizeV10 - w.offset
 		if len(p) < remaining {
 			nn := copy(w.pack[w.offset:], p)
 			w.offset += nn
@@ -56,9 +55,9 @@ func (w *decryptedWriter) Write(p []byte) (n int, err error) {
 		p = p[remaining:]
 		w.offset = 0
 	}
-	for len(p) > headerSize {
+	for len(p) > headerSizeV10 {
 		header := header(p)
-		if len(p) < headerSize+header.Len()+tagSize {
+		if len(p) < headerSizeV10+header.Len()+tagSizeV10 {
 			w.offset = copy(w.pack[:], p)
 			n += w.offset
 			return
@@ -66,20 +65,20 @@ func (w *decryptedWriter) Write(p []byte) (n int, err error) {
 		if err = w.decrypt(p); err != nil {
 			return n, err
 		}
-		p = p[headerSize+header.Len()+tagSize:]
-		n += headerSize + header.Len() + tagSize
+		p = p[headerSizeV10+header.Len()+tagSizeV10:]
+		n += headerSizeV10 + header.Len() + tagSizeV10
 	}
 	w.offset = copy(w.pack[:], p)
 	n += w.offset
 	return
 }
 
-func (w *decryptedWriter) Close() error {
+func (w *decryptedWriterV10) Close() error {
 	if w.offset > 0 {
-		if w.offset < headerSize {
+		if w.offset < headerSizeV10 {
 			return errMissingHeader
 		}
-		if w.offset < headerSize+header(w.pack[:]).Len()+tagSize {
+		if w.offset < headerSizeV10+header(w.pack[:]).Len()+tagSizeV10 {
 			return errPayloadTooShort
 		}
 		if err := w.decrypt(w.pack[:]); err != nil {
@@ -92,17 +91,23 @@ func (w *decryptedWriter) Close() error {
 	return nil
 }
 
-func (w *decryptedWriter) decrypt(src []byte) error {
+func (w *decryptedWriterV10) decrypt(src []byte) error {
 	header := header(src)
-	if err := w.config.verifyHeader(header); err != nil {
-		return err
+	if header.Version() != Version10 {
+		return errUnsupportedVersion
+	}
+	if header.Cipher() > CHACHA20_POLY1305 {
+		return errUnsupportedCipher
+	}
+	aeadCipher := w.ciphers[header.Cipher()]
+	if aeadCipher == nil {
+		return errUnsupportedCipher
 	}
 	if header.SequenceNumber() != w.sequenceNumber {
 		return errPackageOutOfOrder
 	}
 
-	aeadCipher := w.ciphers[header.Cipher()]
-	plaintext, err := aeadCipher.Open(w.pack[headerSize:headerSize], header[4:headerSize], src[headerSize:headerSize+header.Len()+tagSize], header[:4])
+	plaintext, err := aeadCipher.Open(w.pack[headerSizeV10:headerSizeV10], header[4:headerSizeV10], src[headerSizeV10:headerSizeV10+header.Len()+tagSizeV10], header[:4])
 	if err != nil {
 		return errTagMismatch
 	}
@@ -119,29 +124,29 @@ func (w *decryptedWriter) decrypt(src []byte) error {
 	return nil
 }
 
-type encryptedWriter struct {
-	dst    io.Writer
-	config Config
+type encryptedWriterV10 struct {
+	dst io.Writer
 
+	cipherID       byte
 	nonce          [8]byte
 	sequenceNumber uint32
 	cipher         cipher.AEAD
 
-	pack        [headerSize + payloadSize + tagSize]byte
+	pack        [headerSizeV10 + maxPayloadSizeV10 + tagSizeV10]byte
 	payloadSize int
 	offset      int
 }
 
-func (w *encryptedWriter) Write(p []byte) (n int, err error) {
+func (w *encryptedWriterV10) Write(p []byte) (n int, err error) {
 	if w.offset > 0 {
 		remaining := w.payloadSize - w.offset
 		if len(p) < remaining {
-			n = copy(w.pack[headerSize+w.offset:], p)
+			n = copy(w.pack[headerSizeV10+w.offset:], p)
 			w.offset += n
 			return
 		}
-		n = copy(w.pack[headerSize+w.offset:], p[:remaining])
-		if err = w.encrypt(w.pack[headerSize : headerSize+w.payloadSize]); err != nil {
+		n = copy(w.pack[headerSizeV10+w.offset:], p[:remaining])
+		if err = w.encrypt(w.pack[headerSizeV10 : headerSizeV10+w.payloadSize]); err != nil {
 			return
 		}
 		p = p[remaining:]
@@ -155,15 +160,15 @@ func (w *encryptedWriter) Write(p []byte) (n int, err error) {
 		n += w.payloadSize
 	}
 	if len(p) > 0 {
-		w.offset = copy(w.pack[headerSize:], p)
+		w.offset = copy(w.pack[headerSizeV10:], p)
 		n += w.offset
 	}
 	return
 }
 
-func (w *encryptedWriter) Close() error {
+func (w *encryptedWriterV10) Close() error {
 	if w.offset > 0 {
-		return w.encrypt(w.pack[headerSize : headerSize+w.offset])
+		return w.encrypt(w.pack[headerSizeV10 : headerSizeV10+w.offset])
 	}
 	if dst, ok := w.dst.(io.Closer); ok {
 		return dst.Close()
@@ -171,21 +176,21 @@ func (w *encryptedWriter) Close() error {
 	return nil
 }
 
-func (w *encryptedWriter) encrypt(src []byte) error {
+func (w *encryptedWriterV10) encrypt(src []byte) error {
 	header := header(w.pack[:])
-	header.SetVersion(w.config.MaxVersion)
-	header.SetCipher(w.config.CipherSuites[0])
+	header.SetVersion()
+	header.SetCipher(w.cipherID)
 	header.SetLen(len(src))
 	header.SetSequenceNumber(w.sequenceNumber)
 	header.SetNonce(w.nonce)
 
-	w.cipher.Seal(w.pack[headerSize:headerSize], header[4:headerSize], src, header[:4])
+	w.cipher.Seal(w.pack[headerSizeV10:headerSizeV10], header[4:headerSizeV10], src, header[:4])
 
-	n, err := w.dst.Write(w.pack[:headerSize+len(src)+tagSize])
+	n, err := w.dst.Write(w.pack[:headerSizeV10+len(src)+tagSizeV10])
 	if err != nil {
 		return err
 	}
-	if n != headerSize+len(src)+tagSize {
+	if n != headerSizeV10+len(src)+tagSizeV10 {
 		return io.ErrShortWrite
 	}
 

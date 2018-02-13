@@ -19,22 +19,22 @@ import (
 	"io"
 )
 
-type encryptedReader struct {
-	src    io.Reader
-	config Config
+type encryptedReaderV10 struct {
+	src io.Reader
 
+	cipherID       byte
 	sequenceNumber uint32
 	nonce          [8]byte
 	cipher         cipher.AEAD
 
-	pack        [headerSize + payloadSize + tagSize]byte
+	pack        [headerSizeV10 + maxPayloadSizeV10 + tagSizeV10]byte
 	payloadSize int
 	offset      int
 }
 
-func (r *encryptedReader) Read(p []byte) (n int, err error) {
+func (r *encryptedReaderV10) Read(p []byte) (n int, err error) {
 	if r.offset > 0 {
-		remaining := headerSize + header(r.pack[:]).Len() + tagSize - r.offset
+		remaining := headerSizeV10 + header(r.pack[:]).Len() + tagSizeV10 - r.offset
 		if len(p) < remaining {
 			n = copy(p, r.pack[r.offset:r.offset+len(p)])
 			r.offset += n
@@ -44,23 +44,23 @@ func (r *encryptedReader) Read(p []byte) (n int, err error) {
 		p = p[remaining:]
 		r.offset = 0
 	}
-	for len(p) >= headerSize+r.payloadSize+tagSize {
-		nn, err := io.ReadFull(r.src, r.pack[headerSize:headerSize+r.payloadSize])
+	for len(p) >= headerSizeV10+r.payloadSize+tagSizeV10 {
+		nn, err := io.ReadFull(r.src, r.pack[headerSizeV10:headerSizeV10+r.payloadSize])
 		if err != nil && err != io.ErrUnexpectedEOF {
 			return n, err
 		}
 		r.encrypt(p, nn)
-		n += headerSize + nn + tagSize
-		p = p[headerSize+nn+tagSize:]
+		n += headerSizeV10 + nn + tagSizeV10
+		p = p[headerSizeV10+nn+tagSizeV10:]
 	}
 	if len(p) > 0 {
-		nn, err := io.ReadFull(r.src, r.pack[headerSize:headerSize+r.payloadSize])
+		nn, err := io.ReadFull(r.src, r.pack[headerSizeV10:headerSizeV10+r.payloadSize])
 		if err != nil && err != io.ErrUnexpectedEOF {
 			return n, err
 		}
 		r.encrypt(r.pack[:], nn)
-		if headerSize+nn+tagSize < len(p) {
-			r.offset = copy(p, r.pack[:headerSize+nn+tagSize])
+		if headerSizeV10+nn+tagSizeV10 < len(p) {
+			r.offset = copy(p, r.pack[:headerSizeV10+nn+tagSizeV10])
 		} else {
 			r.offset = copy(p, r.pack[:len(p)])
 		}
@@ -69,48 +69,47 @@ func (r *encryptedReader) Read(p []byte) (n int, err error) {
 	return
 }
 
-func (r *encryptedReader) encrypt(dst []byte, length int) {
+func (r *encryptedReaderV10) encrypt(dst []byte, length int) {
 	header := header(dst)
-	header.SetVersion(r.config.MaxVersion)
-	header.SetCipher(r.config.CipherSuites[0])
+	header.SetVersion()
+	header.SetCipher(r.cipherID)
 	header.SetLen(length)
 	header.SetSequenceNumber(r.sequenceNumber)
 	header.SetNonce(r.nonce)
 
-	copy(dst[:headerSize], header)
-	r.cipher.Seal(dst[headerSize:headerSize], header[4:headerSize], r.pack[headerSize:headerSize+length], header[:4])
+	copy(dst[:headerSizeV10], header)
+	r.cipher.Seal(dst[headerSizeV10:headerSizeV10], header[4:headerSizeV10], r.pack[headerSizeV10:headerSizeV10+length], header[:4])
 
 	r.sequenceNumber++
 }
 
-type decryptedReader struct {
-	src    io.Reader
-	config Config
+type decryptedReaderV10 struct {
+	src io.Reader
 
 	sequenceNumber uint32
-	ciphers        []cipher.AEAD
+	ciphers        [2]cipher.AEAD
 
-	pack   [headerSize + payloadSize + tagSize]byte
+	pack   [headerSizeV10 + maxPayloadSizeV10 + tagSizeV10]byte
 	offset int
 }
 
-func (r *decryptedReader) Read(p []byte) (n int, err error) {
+func (r *decryptedReaderV10) Read(p []byte) (n int, err error) {
 	if r.offset > 0 {
 		remaining := header(r.pack[:]).Len() - r.offset
 		if len(p) < remaining {
-			n = copy(p, r.pack[headerSize+r.offset:headerSize+r.offset+len(p)])
+			n = copy(p, r.pack[headerSizeV10+r.offset:headerSizeV10+r.offset+len(p)])
 			r.offset += n
 			return
 		}
-		n = copy(p, r.pack[headerSize+r.offset:headerSize+r.offset+remaining])
+		n = copy(p, r.pack[headerSizeV10+r.offset:headerSizeV10+r.offset+remaining])
 		p = p[remaining:]
 		r.offset = 0
 	}
-	for len(p) >= payloadSize {
+	for len(p) >= maxPayloadSizeV10 {
 		if err = r.readHeader(); err != nil {
 			return n, err
 		}
-		nn, err := r.decrypt(p[:payloadSize])
+		nn, err := r.decrypt(p[:maxPayloadSizeV10])
 		if err != nil {
 			return n, err
 		}
@@ -121,23 +120,23 @@ func (r *decryptedReader) Read(p []byte) (n int, err error) {
 		if err = r.readHeader(); err != nil {
 			return n, err
 		}
-		nn, err := r.decrypt(r.pack[headerSize:])
+		nn, err := r.decrypt(r.pack[headerSizeV10:])
 		if err != nil {
 			return n, err
 		}
 		if nn < len(p) {
-			r.offset = copy(p, r.pack[headerSize:headerSize+nn])
+			r.offset = copy(p, r.pack[headerSizeV10:headerSizeV10+nn])
 		} else {
-			r.offset = copy(p, r.pack[headerSize:headerSize+len(p)])
+			r.offset = copy(p, r.pack[headerSizeV10:headerSizeV10+len(p)])
 		}
 		n += r.offset
 	}
 	return
 }
 
-func (r *decryptedReader) readHeader() error {
+func (r *decryptedReaderV10) readHeader() error {
 	n, err := io.ReadFull(r.src, header(r.pack[:]))
-	if n != headerSize && err == io.ErrUnexpectedEOF {
+	if n != headerSizeV10 && err == io.ErrUnexpectedEOF {
 		return errMissingHeader
 	} else if err != nil {
 		return err
@@ -145,22 +144,28 @@ func (r *decryptedReader) readHeader() error {
 	return nil
 }
 
-func (r *decryptedReader) decrypt(dst []byte) (n int, err error) {
+func (r *decryptedReaderV10) decrypt(dst []byte) (n int, err error) {
 	header := header(r.pack[:])
-	if err = r.config.verifyHeader(header); err != nil {
-		return 0, err
+	if header.Version() != Version10 {
+		return 0, errUnsupportedVersion
+	}
+	if header.Cipher() > CHACHA20_POLY1305 {
+		return 0, errUnsupportedCipher
+	}
+	aeadCipher := r.ciphers[header.Cipher()]
+	if aeadCipher == nil {
+		return 0, errUnsupportedCipher
 	}
 	if header.SequenceNumber() != r.sequenceNumber {
 		return 0, errPackageOutOfOrder
 	}
-	ciphertext := r.pack[headerSize : headerSize+header.Len()+tagSize]
+	ciphertext := r.pack[headerSizeV10 : headerSizeV10+header.Len()+tagSizeV10]
 	n, err = io.ReadFull(r.src, ciphertext)
 	if err == io.EOF || err == io.ErrUnexpectedEOF {
 		return 0, errPayloadTooShort
 	} else if err != nil {
 		return 0, err
 	}
-	aeadCipher := r.ciphers[header.Cipher()]
 	plaintext, err := aeadCipher.Open(dst[:0], header[4:], ciphertext, header[:4])
 	if err != nil {
 		return 0, errTagMismatch
