@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 
+	"github.com/minio/sio/internal/cpu"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
@@ -172,7 +173,7 @@ func DecryptWriter(dst io.Writer, config Config) (io.WriteCloser, error) {
 }
 
 func defaultCipherSuites() []byte {
-	if hasAESNISupport() {
+	if cpu.SupportsAES() {
 		return []byte{AES_256_GCM, CHACHA20_POLY1305}
 	}
 	return []byte{CHACHA20_POLY1305, AES_256_GCM}

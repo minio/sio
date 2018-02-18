@@ -1,4 +1,4 @@
-// Copyright (C) 2017 Minio Inc.
+// Copyright (C) 2018 Minio Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build !amd64 gccgo appengine
+package cpu
 
-package sio
-
-func hasAESNISupport() bool { return false }
+// SupportsAES returns true if the CPU offers special
+// AES instructions. It indicates whether an AES hardware
+// implementation is available.
+func SupportsAES() bool { return hasAESNISupport() }
