@@ -1,16 +1,9 @@
 package sio
 
 import (
-	"crypto/cipher"
 	"encoding/binary"
 	"errors"
 	"io"
-)
-
-const (
-	headerSizeV10     = 16
-	maxPayloadSizeV10 = 64 * 1024
-	tagSizeV10        = 16
 )
 
 var (
@@ -23,93 +16,70 @@ var (
 )
 
 func encryptReaderV10(src io.Reader, config *Config) (io.Reader, error) {
-	cipher, err := supportedCiphers[config.CipherSuites[0]](config.Key)
+	ae, err := newAuthEncV10(config)
 	if err != nil {
 		return nil, err
 	}
-	var nonce [8]byte
-	if _, err = io.ReadFull(config.Rand, nonce[:]); err != nil {
-		return nil, err
-	}
-	return &encryptedReaderV10{
-		src:            src,
-		cipherID:       config.CipherSuites[0],
-		nonce:          nonce,
-		cipher:         cipher,
-		sequenceNumber: config.SequenceNumber,
-		payloadSize:    config.PayloadSize,
+	return &encReaderV1{
+		authEncV10:  ae,
+		src:         src,
+		buffer:      make(packageV10, headerSize+maxPayloadSize+tagSize),
+		payloadSize: config.PayloadSize,
 	}, nil
 }
 
 func decryptReaderV10(src io.Reader, config *Config) (io.Reader, error) {
-	var ciphers [2]cipher.AEAD
-	for _, v := range config.CipherSuites {
-		aeadCipher, err := supportedCiphers[v](config.Key)
-		if err != nil {
-			return nil, err
-		}
-		ciphers[v] = aeadCipher
+	ad, err := newAuthDecV10(config)
+	if err != nil {
+		return nil, err
 	}
-	return &decryptedReaderV10{
-		src:            src,
-		ciphers:        ciphers,
-		sequenceNumber: config.SequenceNumber,
+	return &decReaderV1{
+		authDecV10: ad,
+		src:        src,
+		buffer:     make(packageV10, headerSize+maxPayloadSize+tagSize),
 	}, nil
 }
 
 func encryptWriterV10(dst io.Writer, config *Config) (io.WriteCloser, error) {
-	cipher, err := supportedCiphers[config.CipherSuites[0]](config.Key)
+	ae, err := newAuthEncV10(config)
 	if err != nil {
 		return nil, err
 	}
-	var nonce [8]byte
-	if _, err = io.ReadFull(config.Rand, nonce[:]); err != nil {
-		return nil, err
-	}
-	return &encryptedWriterV10{
-		dst:            dst,
-		cipherID:       config.CipherSuites[0],
-		nonce:          nonce,
-		cipher:         cipher,
-		sequenceNumber: config.SequenceNumber,
-		payloadSize:    config.PayloadSize,
+	return &encWriterV1{
+		authEncV10:  ae,
+		dst:         dst,
+		buffer:      make(packageV10, headerSize+maxPayloadSize+tagSize),
+		payloadSize: config.PayloadSize,
 	}, nil
 }
 
 func decryptWriterV10(dst io.Writer, config *Config) (io.WriteCloser, error) {
-	var ciphers [2]cipher.AEAD
-	for _, v := range config.CipherSuites {
-		aeadCipher, err := supportedCiphers[v](config.Key)
-		if err != nil {
-			return nil, err
-		}
-		ciphers[v] = aeadCipher
+	ad, err := newAuthDecV10(config)
+	if err != nil {
+		return nil, err
 	}
-	return &decryptedWriterV10{
-		dst:            dst,
-		ciphers:        ciphers,
-		sequenceNumber: config.SequenceNumber,
+	return &decWriterV1{
+		authDecV10: ad,
+		dst:        dst,
+		buffer:     make(packageV10, headerSize+maxPayloadSize+tagSize),
 	}, nil
 }
 
 type headerV10 []byte
 
-func header(b []byte) headerV10 { return headerV10(b[:headerSizeV10]) }
-
-func (h headerV10) Version() byte { return h[0] }
-
-func (h headerV10) Cipher() byte { return h[1] }
-
-func (h headerV10) Len() int { return int(binary.LittleEndian.Uint16(h[2:])) + 1 }
-
-func (h headerV10) SequenceNumber() uint32 { return binary.LittleEndian.Uint32(h[4:]) }
-
-func (h headerV10) SetVersion() { h[0] = Version10 }
-
-func (h headerV10) SetCipher(suite byte) { h[1] = suite }
-
-func (h headerV10) SetLen(length int) { binary.LittleEndian.PutUint16(h[2:], uint16(length-1)) }
-
+func (h headerV10) Version() byte                { return h[0] }
+func (h headerV10) Cipher() byte                 { return h[1] }
+func (h headerV10) Len() int                     { return int(binary.LittleEndian.Uint16(h[2:])) + 1 }
+func (h headerV10) SequenceNumber() uint32       { return binary.LittleEndian.Uint32(h[4:]) }
+func (h headerV10) SetVersion()                  { h[0] = Version10 }
+func (h headerV10) SetCipher(suite byte)         { h[1] = suite }
+func (h headerV10) SetLen(length int)            { binary.LittleEndian.PutUint16(h[2:], uint16(length-1)) }
 func (h headerV10) SetSequenceNumber(num uint32) { binary.LittleEndian.PutUint32(h[4:], num) }
+func (h headerV10) SetNonce(nonce []byte)        { copy(h[8:headerSize], nonce[:]) }
 
-func (h headerV10) SetNonce(nonce [8]byte) { copy(h[8:], nonce[:]) }
+type packageV10 []byte
+
+func (p packageV10) Header() headerV10  { return headerV10(p[:headerSize]) }
+func (p packageV10) Payload() []byte    { return p[headerSize : p.Length()-tagSize] }
+func (p packageV10) Ciphertext() []byte { return p[headerSize:p.Length()] }
+func (p packageV10) Length() int        { return headerSize + tagSize + p.Header().Len() }

@@ -29,60 +29,60 @@ import (
 var ioTests = []struct {
 	datasize, buffersize, payloadsize int
 }{
-	{datasize: 1, buffersize: 1, payloadsize: maxPayloadSizeV10},                                                       // 0
-	{datasize: 2, buffersize: 1, payloadsize: maxPayloadSizeV10},                                                       // 1
-	{datasize: maxPayloadSizeV10 - 1, buffersize: 1, payloadsize: maxPayloadSizeV10},                                   // 2
-	{datasize: maxPayloadSizeV10, buffersize: 1, payloadsize: maxPayloadSizeV10},                                       // 3
-	{datasize: maxPayloadSizeV10 + 1, buffersize: 1, payloadsize: maxPayloadSizeV10},                                   // 4
-	{datasize: 1, buffersize: headerSizeV10, payloadsize: maxPayloadSizeV10},                                           // 5
-	{datasize: 1024, buffersize: headerSizeV10, payloadsize: maxPayloadSizeV10},                                        // 6
-	{datasize: maxPayloadSizeV10 - 1, buffersize: headerSizeV10, payloadsize: maxPayloadSizeV10},                       // 7
-	{datasize: maxPayloadSizeV10, buffersize: headerSizeV10, payloadsize: maxPayloadSizeV10},                           // 8
-	{datasize: maxPayloadSizeV10 + 1, buffersize: headerSizeV10, payloadsize: maxPayloadSizeV10},                       // 9
-	{datasize: 1, buffersize: maxPayloadSizeV10, payloadsize: maxPayloadSizeV10},                                       // 10
-	{datasize: 32 * 1024, buffersize: maxPayloadSizeV10, payloadsize: maxPayloadSizeV10},                               // 11
-	{datasize: maxPayloadSizeV10 - 1, buffersize: maxPayloadSizeV10, payloadsize: maxPayloadSizeV10},                   // 12
-	{datasize: maxPayloadSizeV10, buffersize: maxPayloadSizeV10, payloadsize: maxPayloadSizeV10},                       // 13
-	{datasize: maxPayloadSizeV10 + 1, buffersize: maxPayloadSizeV10, payloadsize: maxPayloadSizeV10},                   // 14
-	{datasize: 1, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},                          // 15
-	{datasize: 7 * 1024, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},                   // 16
-	{datasize: maxPayloadSizeV10 - 1, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},      // 17
-	{datasize: maxPayloadSizeV10, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},          // 18
-	{datasize: maxPayloadSizeV10 + 1, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},      // 19
-	{datasize: 1, buffersize: headerSizeV10 + maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},          // 20
-	{datasize: 2 * maxPayloadSizeV10, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},      // 21
-	{datasize: 2*maxPayloadSizeV10 - 1, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},    // 22
-	{datasize: 2*maxPayloadSizeV10 + 1, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},    // 23
-	{datasize: 2*maxPayloadSizeV10 + 1024, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10}, // 24
-	{datasize: 1, buffersize: maxPayloadSizeV10 + 1, payloadsize: maxPayloadSizeV10},                                   // 25
-	{datasize: 2 * maxPayloadSizeV10, buffersize: maxPayloadSizeV10 + 1, payloadsize: maxPayloadSizeV10},               // 26
-	{datasize: 1024*1024 - 1, buffersize: maxPayloadSizeV10 + 1, payloadsize: maxPayloadSizeV10},                       // 27
-	{datasize: 1024 * 1024, buffersize: maxPayloadSizeV10 + 1, payloadsize: maxPayloadSizeV10},                         // 28
-	{datasize: 1024*1024 + 1, buffersize: maxPayloadSizeV10 + 1, payloadsize: maxPayloadSizeV10},                       // 29
-	{datasize: 2 * maxPayloadSizeV10, buffersize: 1024 * 1024, payloadsize: maxPayloadSizeV10},                         // 30
-	{datasize: 3*maxPayloadSizeV10 + 1, buffersize: 3 * maxPayloadSizeV10, payloadsize: maxPayloadSizeV10},             // 31
-	{datasize: 1024 * 1024, buffersize: 2 * 1024 * 1024, payloadsize: maxPayloadSizeV10},                               // 32
-	{datasize: maxPayloadSizeV10 + 1, buffersize: maxPayloadSizeV10 - 1, payloadsize: maxPayloadSizeV10},               // 33
-	{datasize: 1, buffersize: 1, payloadsize: 8 * 1024},                                                                // 34
-	{datasize: 2, buffersize: 1, payloadsize: 16 * 1024},                                                               // 35
-	{datasize: maxPayloadSizeV10 - 1, buffersize: 1, payloadsize: 8 * 1024},                                            // 36
-	{datasize: maxPayloadSizeV10, buffersize: 1, payloadsize: 16 * 1024},                                               // 37
-	{datasize: maxPayloadSizeV10 + 1, buffersize: 1, payloadsize: 32 * 1024},                                           // 38
-	{datasize: 2 * maxPayloadSizeV10, buffersize: maxPayloadSizeV10 + 1, payloadsize: 32 * 1024},                       // 39
-	{datasize: 1024*1024 - 1, buffersize: maxPayloadSizeV10 + 1, payloadsize: 32 * 1024},                               // 40
-	{datasize: 1024 * 1024, buffersize: maxPayloadSizeV10 + 1, payloadsize: 32 * 1024},                                 // 41
-	{datasize: 1024*1024 + 1, buffersize: maxPayloadSizeV10 + 1, payloadsize: 32 * 1024},                               // 42
-	{datasize: 2 * maxPayloadSizeV10, buffersize: 1024 * 1024, payloadsize: 32 * 1024},                                 // 43
-	{datasize: 3*maxPayloadSizeV10 + 1, buffersize: 3 * maxPayloadSizeV10, payloadsize: 1 + 32*1024},                   // 44
-	{datasize: 1024 * 1024, buffersize: 2 * 1024 * 1024, payloadsize: 2 + 32*1024},                                     // 45
-	{datasize: maxPayloadSizeV10 + 1, buffersize: maxPayloadSizeV10 - 1, payloadsize: 3 + 32*1024},                     // 46
+	{datasize: 1, buffersize: 1, payloadsize: maxPayloadSize},                                              // 0
+	{datasize: 2, buffersize: 1, payloadsize: maxPayloadSize},                                              // 1
+	{datasize: maxPayloadSize - 1, buffersize: 1, payloadsize: maxPayloadSize},                             // 2
+	{datasize: maxPayloadSize, buffersize: 1, payloadsize: maxPayloadSize},                                 // 3
+	{datasize: maxPayloadSize + 1, buffersize: 1, payloadsize: maxPayloadSize},                             // 4
+	{datasize: 1, buffersize: headerSize, payloadsize: maxPayloadSize},                                     // 5
+	{datasize: 1024, buffersize: headerSize, payloadsize: maxPayloadSize},                                  // 6
+	{datasize: maxPayloadSize - 1, buffersize: headerSize, payloadsize: maxPayloadSize},                    // 7
+	{datasize: maxPayloadSize, buffersize: headerSize, payloadsize: maxPayloadSize},                        // 8
+	{datasize: maxPayloadSize + 1, buffersize: headerSize, payloadsize: maxPayloadSize},                    // 9
+	{datasize: 1, buffersize: maxPayloadSize, payloadsize: maxPayloadSize},                                 // 10
+	{datasize: 32 * 1024, buffersize: maxPayloadSize, payloadsize: maxPayloadSize},                         // 11
+	{datasize: maxPayloadSize - 1, buffersize: maxPayloadSize, payloadsize: maxPayloadSize},                // 12
+	{datasize: maxPayloadSize, buffersize: maxPayloadSize, payloadsize: maxPayloadSize},                    // 13
+	{datasize: maxPayloadSize + 1, buffersize: maxPayloadSize, payloadsize: maxPayloadSize},                // 14
+	{datasize: 1, buffersize: maxPayloadSize + tagSize, payloadsize: maxPayloadSize},                       // 15
+	{datasize: 7 * 1024, buffersize: maxPayloadSize + tagSize, payloadsize: maxPayloadSize},                // 16
+	{datasize: maxPayloadSize - 1, buffersize: maxPayloadSize + tagSize, payloadsize: maxPayloadSize},      // 17
+	{datasize: maxPayloadSize, buffersize: maxPayloadSize + tagSize, payloadsize: maxPayloadSize},          // 18
+	{datasize: maxPayloadSize + 1, buffersize: maxPayloadSize + tagSize, payloadsize: maxPayloadSize},      // 19
+	{datasize: 1, buffersize: headerSize + maxPayloadSize + tagSize, payloadsize: maxPayloadSize},          // 20
+	{datasize: 2 * maxPayloadSize, buffersize: maxPayloadSize + tagSize, payloadsize: maxPayloadSize},      // 21
+	{datasize: 2*maxPayloadSize - 1, buffersize: maxPayloadSize + tagSize, payloadsize: maxPayloadSize},    // 22
+	{datasize: 2*maxPayloadSize + 1, buffersize: maxPayloadSize + tagSize, payloadsize: maxPayloadSize},    // 23
+	{datasize: 2*maxPayloadSize + 1024, buffersize: maxPayloadSize + tagSize, payloadsize: maxPayloadSize}, // 24
+	{datasize: 1, buffersize: maxPayloadSize + 1, payloadsize: maxPayloadSize},                             // 25
+	{datasize: 2 * maxPayloadSize, buffersize: maxPayloadSize + 1, payloadsize: maxPayloadSize},            // 26
+	{datasize: 1024*1024 - 1, buffersize: maxPayloadSize + 1, payloadsize: maxPayloadSize},                 // 27
+	{datasize: 1024 * 1024, buffersize: maxPayloadSize + 1, payloadsize: maxPayloadSize},                   // 28
+	{datasize: 1024*1024 + 1, buffersize: maxPayloadSize + 1, payloadsize: maxPayloadSize},                 // 29
+	{datasize: 2 * maxPayloadSize, buffersize: 1024 * 1024, payloadsize: maxPayloadSize},                   // 30
+	{datasize: 3*maxPayloadSize + 1, buffersize: 3 * maxPayloadSize, payloadsize: maxPayloadSize},          // 31
+	{datasize: 1024 * 1024, buffersize: 2 * 1024 * 1024, payloadsize: maxPayloadSize},                      // 32
+	{datasize: maxPayloadSize + 1, buffersize: maxPayloadSize - 1, payloadsize: maxPayloadSize},            // 33
+	{datasize: 1, buffersize: 1, payloadsize: 8 * 1024},                                                    // 34
+	{datasize: 2, buffersize: 1, payloadsize: 16 * 1024},                                                   // 35
+	{datasize: maxPayloadSize - 1, buffersize: 1, payloadsize: 8 * 1024},                                   // 36
+	{datasize: maxPayloadSize, buffersize: 1, payloadsize: 16 * 1024},                                      // 37
+	{datasize: maxPayloadSize + 1, buffersize: 1, payloadsize: 32 * 1024},                                  // 38
+	{datasize: 2 * maxPayloadSize, buffersize: maxPayloadSize + 1, payloadsize: 32 * 1024},                 // 39
+	{datasize: 1024*1024 - 1, buffersize: maxPayloadSize + 1, payloadsize: 32 * 1024},                      // 40
+	{datasize: 1024 * 1024, buffersize: maxPayloadSize + 1, payloadsize: 32 * 1024},                        // 41
+	{datasize: 1024*1024 + 1, buffersize: maxPayloadSize + 1, payloadsize: 32 * 1024},                      // 42
+	{datasize: 2 * maxPayloadSize, buffersize: 1024 * 1024, payloadsize: 32 * 1024},                        // 43
+	{datasize: 3*maxPayloadSize + 1, buffersize: 3 * maxPayloadSize, payloadsize: 1 + 32*1024},             // 44
+	{datasize: 1024 * 1024, buffersize: 2 * 1024 * 1024, payloadsize: 2 + 32*1024},                         // 45
+	{datasize: maxPayloadSize + 1, buffersize: maxPayloadSize - 1, payloadsize: 3 + 32*1024},               // 46
 
 }
 
 func dumpDareStream(strm []byte) {
 	i := 0
 	for {
-		hdr := header(strm[i:])
+		hdr := headerV10(strm[i : i+headerSize])
 
 		fmt.Print("[")
 		for i, b := range hdr {
@@ -95,7 +95,7 @@ func dumpDareStream(strm []byte) {
 
 		fmt.Printf(" version=0x%02x, cipher=0x%02x, len=0x%x, sequencenr=0x%x\n", hdr.Version(), hdr.Cipher(), hdr.Len(), hdr.SequenceNumber())
 
-		i += headerSizeV10 + hdr.Len() + tagSizeV10
+		i += headerSize + hdr.Len() + tagSize
 		if i == len(strm) {
 			break
 		} else if i > len(strm) {
@@ -126,7 +126,7 @@ func TestEncrypt(t *testing.T) {
 			t.Errorf("Test %d: Decryption failed: number of bytes: %d - %v", i, n, err)
 		}
 		if !bytes.Equal(data, decrypted.Bytes()) {
-			t.Errorf("Test: %d: Failed to encrypt and decrypt data. %v | %v", i, data, decrypted.Bytes())
+			t.Errorf("Test: %d: Failed to encrypt and decrypt data", i)
 		}
 	}
 }
@@ -255,7 +255,7 @@ var testVectors = []struct {
 	},
 	{
 		config:     Config{CipherSuites: []byte{AES_256_GCM}, Rand: &nonceGen{[8]byte{2}}},
-		data:       make([]byte, maxPayloadSizeV10),
+		data:       make([]byte, maxPayloadSize),
 		header:     []byte{16, 0, 255, 255, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0},
 		ciphertext: nil,
 		tag:        []byte{139, 74, 190, 231, 245, 110, 183, 213, 6, 21, 36, 24, 19, 122, 47, 159},
@@ -287,7 +287,7 @@ var testVectors = []struct {
 	},
 	{
 		config:     Config{CipherSuites: []byte{CHACHA20_POLY1305}, Rand: &nonceGen{[8]byte{2}}},
-		data:       make([]byte, maxPayloadSizeV10),
+		data:       make([]byte, maxPayloadSize),
 		header:     []byte{16, 1, 255, 255, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0},
 		ciphertext: nil,
 		tag:        []byte{149, 175, 36, 122, 124, 207, 137, 178, 185, 135, 112, 8, 59, 83, 132, 200},
@@ -327,14 +327,14 @@ func TestVectors(t *testing.T) {
 		}
 
 		out := output.Bytes()
-		if !bytes.Equal(out[:headerSizeV10], test.header) {
-			t.Errorf("Test %d: Header does not match: got: %v want: %v", i, out[:headerSizeV10], test.header)
+		if !bytes.Equal(out[:headerSize], test.header) {
+			t.Errorf("Test %d: Header does not match: got: %v want: %v", i, out[:headerSize], test.header)
 		}
-		if test.ciphertext != nil && !bytes.Equal(out[headerSizeV10:len(out)-tagSizeV10], test.ciphertext) {
-			t.Errorf("Test %d: Header does not match: got: %v want: %v", i, out[headerSizeV10:len(out)-tagSizeV10], test.ciphertext)
+		if test.ciphertext != nil && !bytes.Equal(out[headerSize:len(out)-tagSize], test.ciphertext) {
+			t.Errorf("Test %d: Header does not match: got: %v want: %v", i, out[headerSize:len(out)-tagSize], test.ciphertext)
 		}
-		if !bytes.Equal(out[len(out)-tagSizeV10:], test.tag) {
-			t.Errorf("Test %d: Header does not match: got: %v want: %v", i, out[len(out)-tagSizeV10:], test.tag)
+		if !bytes.Equal(out[len(out)-tagSize:], test.tag) {
+			t.Errorf("Test %d: Header does not match: got: %v want: %v", i, out[len(out)-tagSize:], test.tag)
 		}
 
 		decrypted := make([]byte, len(test.data))
@@ -493,11 +493,11 @@ func TestVerifySequenceNumbers(t *testing.T) {
 			SequenceNumber: test.sequence,
 		}
 
-		data := make([]byte, maxPayloadSizeV10*test.packages)
+		data := make([]byte, maxPayloadSize*test.packages)
 		if _, err = io.ReadFull(rand.Reader, data); err != nil {
 			t.Fatalf("Test %d: Failed to generate random data: %v", i, err)
 		}
-		dst := make([]byte, (headerSizeV10+maxPayloadSizeV10+tagSizeV10)*test.packages)
+		dst := make([]byte, (headerSize+maxPayloadSize+tagSize)*test.packages)
 		if _, err = Encrypt(bytes.NewBuffer(dst[:0]), bytes.NewReader(data), config); err != nil {
 			t.Errorf("Test %d: Failed to encrypt data: %v", i, err)
 		}
@@ -506,8 +506,9 @@ func TestVerifySequenceNumbers(t *testing.T) {
 			t.Errorf("Test %d: Failed to decrypt data: %v", i, err)
 		}
 
-		unmodifiedHeader := make([]byte, headerSizeV10)
-		header := header(dst[(headerSizeV10+maxPayloadSizeV10+tagSizeV10)*test.modify:])
+		unmodifiedHeader := make([]byte, headerSize)
+		offset := (headerSize + maxPayloadSize + tagSize) * test.modify
+		header := headerV10(dst[offset : offset+headerSize])
 		copy(unmodifiedHeader, header)
 
 		header.SetSequenceNumber(test.badSequence)
@@ -603,8 +604,8 @@ func TestAppending(t *testing.T) {
 			if _, err := Encrypt(dst, bytes.NewReader(data), config); err != nil {
 				t.Fatalf("Test %d: Failed to encrypt %d part: %v", i, j, err)
 			}
-			config.SequenceNumber += uint32(test.datasize / maxPayloadSizeV10)
-			if test.datasize%maxPayloadSizeV10 > 0 {
+			config.SequenceNumber += uint32(test.datasize / maxPayloadSize)
+			if test.datasize%maxPayloadSize > 0 {
 				config.SequenceNumber++
 			}
 		}

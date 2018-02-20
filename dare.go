@@ -41,6 +41,12 @@ const (
 	CHACHA20_POLY1305
 )
 
+const (
+	headerSize     = 16
+	maxPayloadSize = 1 << 16
+	tagSize        = 16
+)
+
 var newAesGcm = func(key []byte) (cipher.AEAD, error) {
 	aes256, err := aes.NewCipher(key)
 	if err != nil {
@@ -99,7 +105,7 @@ func Encrypt(dst io.Writer, src io.Reader, config Config) (n int64, err error) {
 	if err != nil {
 		return
 	}
-	return io.CopyBuffer(dst, encReader, make([]byte, maxPayloadSizeV10))
+	return io.CopyBuffer(dst, encReader, make([]byte, headerSize+maxPayloadSize+tagSize))
 }
 
 // Decrypt reads from src until it encounters an io.EOF and decrypts all received
@@ -113,7 +119,7 @@ func Decrypt(dst io.Writer, src io.Reader, config Config) (n int64, err error) {
 	if err != nil {
 		return
 	}
-	return io.CopyBuffer(dst, decReader, make([]byte, headerSizeV10+maxPayloadSizeV10+tagSizeV10))
+	return io.CopyBuffer(dst, decReader, make([]byte, maxPayloadSize))
 }
 
 // EncryptReader wraps the given src and returns an io.Reader which encrypts
@@ -197,7 +203,7 @@ func setConfigDefaults(config *Config) error {
 			return errors.New("sio: unknown cipher suite")
 		}
 	}
-	if config.PayloadSize > maxPayloadSizeV10 {
+	if config.PayloadSize > maxPayloadSize {
 		return errors.New("sio: payload size is too large")
 	}
 
@@ -214,7 +220,7 @@ func setConfigDefaults(config *Config) error {
 		config.Rand = rand.Reader
 	}
 	if config.PayloadSize == 0 {
-		config.PayloadSize = maxPayloadSizeV10
+		config.PayloadSize = maxPayloadSize
 	}
 	return nil
 }
