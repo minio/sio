@@ -16,7 +16,7 @@ package sio
 
 import "io"
 
-type decWriterV1 struct {
+type decWriterV10 struct {
 	authDecV10
 	dst io.Writer
 
@@ -24,7 +24,19 @@ type decWriterV1 struct {
 	offset int
 }
 
-func (w *decWriterV1) Write(p []byte) (n int, err error) {
+func decryptWriterV10(dst io.Writer, config *Config) (*decWriterV10, error) {
+	ad, err := newAuthDecV10(config)
+	if err != nil {
+		return nil, err
+	}
+	return &decWriterV10{
+		authDecV10: ad,
+		dst:        dst,
+		buffer:     make(packageV10, maxPackageSize),
+	}, nil
+}
+
+func (w *decWriterV10) Write(p []byte) (n int, err error) {
 	if w.offset > 0 && w.offset < headerSize {
 		remaining := headerSize - w.offset
 		if len(p) < remaining {
@@ -76,14 +88,14 @@ func (w *decWriterV1) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
-func (w *decWriterV1) Close() error {
+func (w *decWriterV10) Close() error {
 	if w.offset > 0 {
-		if w.offset < headerSize {
-			return errMissingHeader
+		if w.offset <= headerSize+tagSize {
+			return errInvalidPayloadSize
 		}
 		header := headerV10(w.buffer[:headerSize])
 		if w.offset < headerSize+header.Len()+tagSize {
-			return errPayloadTooShort
+			return errInvalidPayloadSize
 		}
 		if err := w.Open(w.buffer.Payload(), w.buffer[:w.buffer.Length()]); err != nil {
 			return err
@@ -98,7 +110,7 @@ func (w *decWriterV1) Close() error {
 	return nil
 }
 
-type encWriterV1 struct {
+type encWriterV10 struct {
 	authEncV10
 	dst io.Writer
 
@@ -107,7 +119,20 @@ type encWriterV1 struct {
 	payloadSize int
 }
 
-func (w *encWriterV1) Write(p []byte) (n int, err error) {
+func encryptWriterV10(dst io.Writer, config *Config) (*encWriterV10, error) {
+	ae, err := newAuthEncV10(config)
+	if err != nil {
+		return nil, err
+	}
+	return &encWriterV10{
+		authEncV10:  ae,
+		dst:         dst,
+		buffer:      make(packageV10, maxPackageSize),
+		payloadSize: config.PayloadSize,
+	}, nil
+}
+
+func (w *encWriterV10) Write(p []byte) (n int, err error) {
 	if w.offset > 0 {
 		remaining := w.payloadSize - w.offset
 		if len(p) < remaining {
@@ -138,7 +163,7 @@ func (w *encWriterV1) Write(p []byte) (n int, err error) {
 	return
 }
 
-func (w *encWriterV1) Close() error {
+func (w *encWriterV10) Close() error {
 	if w.offset > 0 {
 		w.Seal(w.buffer[:], w.buffer[headerSize:headerSize+w.offset])
 		if err := flush(w.dst, w.buffer[:w.buffer.Length()]); err != nil {

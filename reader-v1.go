@@ -16,7 +16,7 @@ package sio
 
 import "io"
 
-type encReaderV1 struct {
+type encReaderV10 struct {
 	authEncV10
 	src io.Reader
 
@@ -25,7 +25,20 @@ type encReaderV1 struct {
 	payloadSize int
 }
 
-func (r *encReaderV1) Read(p []byte) (int, error) {
+func encryptReaderV10(src io.Reader, config *Config) (*encReaderV10, error) {
+	ae, err := newAuthEncV10(config)
+	if err != nil {
+		return nil, err
+	}
+	return &encReaderV10{
+		authEncV10:  ae,
+		src:         src,
+		buffer:      make(packageV10, maxPackageSize),
+		payloadSize: config.PayloadSize,
+	}, nil
+}
+
+func (r *encReaderV10) Read(p []byte) (int, error) {
 	var n int
 	if r.offset > 0 {
 		remaining := r.buffer.Length() - r.offset
@@ -63,7 +76,7 @@ func (r *encReaderV1) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-type decReaderV1 struct {
+type decReaderV10 struct {
 	authDecV10
 	src io.Reader
 
@@ -71,7 +84,19 @@ type decReaderV1 struct {
 	offset int
 }
 
-func (r *decReaderV1) Read(p []byte) (n int, err error) {
+func decryptReaderV10(src io.Reader, config *Config) (*decReaderV10, error) {
+	ad, err := newAuthDecV10(config)
+	if err != nil {
+		return nil, err
+	}
+	return &decReaderV10{
+		authDecV10: ad,
+		src:        src,
+		buffer:     make(packageV10, maxPackageSize),
+	}, nil
+}
+
+func (r *decReaderV10) Read(p []byte) (n int, err error) {
 	if r.offset > 0 {
 		payload := r.buffer.Payload()
 		remaining := len(payload) - r.offset
@@ -113,11 +138,11 @@ func (r *decReaderV1) Read(p []byte) (n int, err error) {
 	return
 }
 
-func (r *decReaderV1) readPackage(dst packageV10) error {
+func (r *decReaderV10) readPackage(dst packageV10) error {
 	header := dst.Header()
 	_, err := io.ReadFull(r.src, header)
 	if err == io.ErrUnexpectedEOF {
-		return errMissingHeader
+		return errInvalidPayloadSize
 	}
 	if err != nil {
 		return err
@@ -125,7 +150,7 @@ func (r *decReaderV1) readPackage(dst packageV10) error {
 
 	_, err = io.ReadFull(r.src, dst.Ciphertext())
 	if err == io.EOF || err == io.ErrUnexpectedEOF {
-		return errPayloadTooShort
+		return errInvalidPayloadSize
 	}
 	if err != nil {
 		return err
