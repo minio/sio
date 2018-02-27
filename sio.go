@@ -42,6 +42,8 @@ const (
 )
 
 const (
+	keySize = 32
+
 	headerSize     = 16
 	maxPayloadSize = 1 << 16
 	tagSize        = 16
@@ -218,7 +220,7 @@ func setConfigDefaults(config *Config) error {
 	if config.MaxVersion > Version20 {
 		return errors.New("sio: unknown maximum version")
 	}
-	if len(config.Key) != 32 {
+	if len(config.Key) != keySize {
 		return errors.New("sio: invalid key size")
 	}
 	if len(config.CipherSuites) > 2 {
