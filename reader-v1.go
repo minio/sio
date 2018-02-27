@@ -40,8 +40,8 @@ func encryptReaderV10(src io.Reader, config *Config) (*encReaderV10, error) {
 
 func (r *encReaderV10) Read(p []byte) (int, error) {
 	var n int
-	if r.offset > 0 {
-		remaining := r.buffer.Length() - r.offset
+	if r.offset > 0 { // write the buffered package to p
+		remaining := r.buffer.Length() - r.offset // remaining encrypted bytes
 		if len(p) < remaining {
 			n = copy(p, r.buffer[r.offset:r.offset+len(p)])
 			r.offset += n
@@ -52,18 +52,18 @@ func (r *encReaderV10) Read(p []byte) (int, error) {
 		r.offset = 0
 	}
 	for len(p) >= headerSize+r.payloadSize+tagSize {
-		nn, err := io.ReadFull(r.src, p[headerSize:headerSize+r.payloadSize])
+		nn, err := io.ReadFull(r.src, p[headerSize:headerSize+r.payloadSize]) // read plaintext from src
 		if err != nil && err != io.ErrUnexpectedEOF {
-			return n, err
+			return n, err // return if reading from src fails or reached EOF
 		}
 		r.Seal(p, p[headerSize:headerSize+nn])
 		n += headerSize + nn + tagSize
 		p = p[headerSize+nn+tagSize:]
 	}
 	if len(p) > 0 {
-		nn, err := io.ReadFull(r.src, r.buffer[headerSize:headerSize+r.payloadSize])
+		nn, err := io.ReadFull(r.src, r.buffer[headerSize:headerSize+r.payloadSize]) // read plaintext from src
 		if err != nil && err != io.ErrUnexpectedEOF {
-			return n, err
+			return n, err // return if reading from src fails or reached EOF
 		}
 		r.Seal(r.buffer, r.buffer[headerSize:headerSize+nn])
 		if length := r.buffer.Length(); length < len(p) {
@@ -97,9 +97,9 @@ func decryptReaderV10(src io.Reader, config *Config) (*decReaderV10, error) {
 }
 
 func (r *decReaderV10) Read(p []byte) (n int, err error) {
-	if r.offset > 0 {
+	if r.offset > 0 { // write the buffered plaintext to p
 		payload := r.buffer.Payload()
-		remaining := len(payload) - r.offset
+		remaining := len(payload) - r.offset // remaining plaintext bytes
 		if len(p) < remaining {
 			n = copy(p, payload[r.offset:+r.offset+len(p)])
 			r.offset += n
@@ -114,8 +114,8 @@ func (r *decReaderV10) Read(p []byte) (n int, err error) {
 			return n, err
 		}
 		length := len(r.buffer.Payload())
-		if err = r.Open(p[:length], r.buffer[:r.buffer.Length()]); err != nil {
-			return n, err
+		if err = r.Open(p[:length], r.buffer[:r.buffer.Length()]); err != nil { // notice: buffer.Length() may be smaller than len(buffer)
+			return n, err // decryption failed
 		}
 		p = p[length:]
 		n += length
@@ -125,8 +125,8 @@ func (r *decReaderV10) Read(p []byte) (n int, err error) {
 			return n, err
 		}
 		payload := r.buffer.Payload()
-		if err = r.Open(payload, r.buffer[:r.buffer.Length()]); err != nil {
-			return n, err
+		if err = r.Open(payload, r.buffer[:r.buffer.Length()]); err != nil { // notice: buffer.Length() may be smaller than len(buffer)
+			return n, err // decryption failed
 		}
 		if len(payload) < len(p) {
 			r.offset = copy(p, payload)
@@ -135,25 +135,25 @@ func (r *decReaderV10) Read(p []byte) (n int, err error) {
 		}
 		n += r.offset
 	}
-	return
+	return n, nil
 }
 
 func (r *decReaderV10) readPackage(dst packageV10) error {
 	header := dst.Header()
 	_, err := io.ReadFull(r.src, header)
 	if err == io.ErrUnexpectedEOF {
-		return errInvalidPayloadSize
+		return errInvalidPayloadSize // partial header
 	}
 	if err != nil {
-		return err
+		return err // reading from src failed or reached EOF
 	}
 
 	_, err = io.ReadFull(r.src, dst.Ciphertext())
 	if err == io.EOF || err == io.ErrUnexpectedEOF {
-		return errInvalidPayloadSize
+		return errInvalidPayloadSize // reading less data than specified by header
 	}
 	if err != nil {
-		return err
+		return err // reading from src failed or reached EOF
 	}
 	return nil
 }

@@ -40,25 +40,27 @@ func encryptWriterV20(dst io.Writer, config *Config) (*encWriterV20, error) {
 
 func (w *encWriterV20) Write(p []byte) (n int, err error) {
 	if w.finalized {
+		// The caller closed the encWriterV20 instance (called encWriterV20.Close()).
+		// This is a bug in the calling code - Write after Close is not allowed.
 		panic("sio: write to stream after close")
 	}
-	if w.offset > 0 {
+	if w.offset > 0 { // buffer the plaintext data
 		remaining := maxPayloadSize - w.offset
-		if len(p) <= remaining {
+		if len(p) <= remaining { // <= is important here to buffer up to 64 KB (inclusivly) - see: Close()
 			w.offset += copy(w.buffer[headerSize+w.offset:], p)
 			return len(p), nil
 		}
 		n = copy(w.buffer[headerSize+w.offset:], p[:remaining])
 		w.Seal(w.buffer, w.buffer[headerSize:headerSize+maxPayloadSize])
-		if err = flush(w.dst, w.buffer); err != nil {
+		if err = flush(w.dst, w.buffer); err != nil { // write to underlying io.Writer
 			return n, err
 		}
 		p = p[remaining:]
 		w.offset = 0
 	}
-	for len(p) > maxPayloadSize {
+	for len(p) > maxPayloadSize { // > is important here to call Seal (not SealFinal) only if there is at least on package left - see: Close()
 		w.Seal(w.buffer, p[:maxPayloadSize])
-		if err = flush(w.dst, w.buffer); err != nil {
+		if err = flush(w.dst, w.buffer); err != nil { // write to underlying io.Writer
 			return n, err
 		}
 		p = p[maxPayloadSize:]
@@ -72,9 +74,9 @@ func (w *encWriterV20) Write(p []byte) (n int, err error) {
 }
 
 func (w *encWriterV20) Close() error {
-	if w.offset > 0 {
+	if w.offset > 0 { // true if at least one Write call happend
 		w.SealFinal(w.buffer, w.buffer[headerSize:headerSize+w.offset])
-		if err := flush(w.dst, w.buffer[:headerSize+w.offset+tagSize]); err != nil {
+		if err := flush(w.dst, w.buffer[:headerSize+w.offset+tagSize]); err != nil { // write to underlying io.Writer
 			return err
 		}
 		w.offset = 0
@@ -106,33 +108,38 @@ func decryptWriterV20(dst io.Writer, config *Config) (*decWriterV20, error) {
 }
 
 func (w *decWriterV20) Write(p []byte) (n int, err error) {
-	if w.offset > 0 {
+	if w.offset > 0 { // buffer package
 		remaining := headerSize + maxPayloadSize + tagSize - w.offset
 		if len(p) < remaining {
 			w.offset += copy(w.buffer[w.offset:], p)
 			return len(p), nil
 		}
 		n = copy(w.buffer[w.offset:], p[:remaining])
-		if err = w.Open(w.buffer[headerSize:headerSize+maxPayloadSize], w.buffer); err != nil {
+		plaintext := w.buffer[headerSize : headerSize+maxPayloadSize]
+		if err = w.Open(plaintext, w.buffer); err != nil {
 			return n, err
 		}
-		if err = flush(w.dst, w.buffer[headerSize:headerSize+maxPayloadSize]); err != nil {
+		if err = flush(w.dst, plaintext); err != nil { // write to underlying io.Writer
 			return n, err
 		}
 		p = p[remaining:]
 		w.offset = 0
 	}
 	for len(p) >= maxPackageSize {
-		if err = w.Open(w.buffer[headerSize:headerSize+maxPayloadSize], p[:maxPackageSize]); err != nil {
+		plaintext := w.buffer[headerSize : headerSize+maxPayloadSize]
+		if err = w.Open(plaintext, p[:maxPackageSize]); err != nil {
 			return n, err
 		}
-		if err = flush(w.dst, w.buffer[headerSize:headerSize+maxPayloadSize]); err != nil {
+		if err = flush(w.dst, plaintext); err != nil { // write to underlying io.Writer
 			return n, err
 		}
 		p = p[maxPackageSize:]
 		n += maxPackageSize
 	}
 	if len(p) > 0 {
+		if w.finalized {
+			return n, errUnexpectedData
+		}
 		w.offset = copy(w.buffer[:], p)
 		n += w.offset
 	}
@@ -141,13 +148,13 @@ func (w *decWriterV20) Write(p []byte) (n int, err error) {
 
 func (w *decWriterV20) Close() error {
 	if w.offset > 0 {
-		if w.offset <= headerSize+tagSize {
+		if w.offset <= headerSize+tagSize { // the payload is always > 0
 			return errInvalidPayloadSize
 		}
 		if err := w.Open(w.buffer[headerSize:w.offset-tagSize], w.buffer[:w.offset]); err != nil {
 			return err
 		}
-		if err := flush(w.dst, w.buffer[headerSize:w.offset-tagSize]); err != nil {
+		if err := flush(w.dst, w.buffer[headerSize:w.offset-tagSize]); err != nil { // write to underlying io.Writer
 			return err
 		}
 		w.offset = 0

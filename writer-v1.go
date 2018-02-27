@@ -37,7 +37,7 @@ func decryptWriterV10(dst io.Writer, config *Config) (*decWriterV10, error) {
 }
 
 func (w *decWriterV10) Write(p []byte) (n int, err error) {
-	if w.offset > 0 && w.offset < headerSize {
+	if w.offset > 0 && w.offset < headerSize { // buffer the header -> special code b/c we don't know when to decrypt without header
 		remaining := headerSize - w.offset
 		if len(p) < remaining {
 			n = copy(w.buffer[w.offset:], p)
@@ -48,7 +48,7 @@ func (w *decWriterV10) Write(p []byte) (n int, err error) {
 		p = p[remaining:]
 		w.offset += n
 	}
-	if w.offset >= headerSize {
+	if w.offset >= headerSize { // buffer the ciphertext and tag -> here we know when to decrypt
 		remaining := w.buffer.Length() - w.offset
 		if len(p) < remaining {
 			nn := copy(w.buffer[w.offset:], p)
@@ -59,7 +59,7 @@ func (w *decWriterV10) Write(p []byte) (n int, err error) {
 		if err = w.Open(w.buffer.Payload(), w.buffer[:w.buffer.Length()]); err != nil {
 			return n, err
 		}
-		if err = flush(w.dst, w.buffer.Payload()); err != nil {
+		if err = flush(w.dst, w.buffer.Payload()); err != nil { // write to underlying io.Writer
 			return n, err
 		}
 		p = p[remaining:]
@@ -67,7 +67,7 @@ func (w *decWriterV10) Write(p []byte) (n int, err error) {
 	}
 	for len(p) > headerSize {
 		packageLen := headerSize + tagSize + headerV10(p).Len()
-		if len(p) < packageLen {
+		if len(p) < packageLen { // p contains not the full package -> cannot decrypt
 			w.offset = copy(w.buffer[:], p)
 			n += w.offset
 			return n, err
@@ -75,7 +75,7 @@ func (w *decWriterV10) Write(p []byte) (n int, err error) {
 		if err = w.Open(w.buffer[headerSize:packageLen-tagSize], p[:packageLen]); err != nil {
 			return n, err
 		}
-		if err = flush(w.dst, w.buffer[headerSize:packageLen-tagSize]); err != nil {
+		if err = flush(w.dst, w.buffer[headerSize:packageLen-tagSize]); err != nil { // write to underlying io.Writer
 			return n, err
 		}
 		p = p[packageLen:]
@@ -91,16 +91,16 @@ func (w *decWriterV10) Write(p []byte) (n int, err error) {
 func (w *decWriterV10) Close() error {
 	if w.offset > 0 {
 		if w.offset <= headerSize+tagSize {
-			return errInvalidPayloadSize
+			return errInvalidPayloadSize // the payload is always > 0
 		}
 		header := headerV10(w.buffer[:headerSize])
 		if w.offset < headerSize+header.Len()+tagSize {
-			return errInvalidPayloadSize
+			return errInvalidPayloadSize // there is less data than specified by the header
 		}
 		if err := w.Open(w.buffer.Payload(), w.buffer[:w.buffer.Length()]); err != nil {
 			return err
 		}
-		if err := flush(w.dst, w.buffer.Payload()); err != nil {
+		if err := flush(w.dst, w.buffer.Payload()); err != nil { // write to underlying io.Writer
 			return err
 		}
 	}
@@ -133,7 +133,7 @@ func encryptWriterV10(dst io.Writer, config *Config) (*encWriterV10, error) {
 }
 
 func (w *encWriterV10) Write(p []byte) (n int, err error) {
-	if w.offset > 0 {
+	if w.offset > 0 { // buffer the plaintext
 		remaining := w.payloadSize - w.offset
 		if len(p) < remaining {
 			n = copy(w.buffer[headerSize+w.offset:], p)
@@ -142,7 +142,7 @@ func (w *encWriterV10) Write(p []byte) (n int, err error) {
 		}
 		n = copy(w.buffer[headerSize+w.offset:], p[:remaining])
 		w.Seal(w.buffer, w.buffer[headerSize:headerSize+w.payloadSize])
-		if err = flush(w.dst, w.buffer[:w.buffer.Length()]); err != nil {
+		if err = flush(w.dst, w.buffer[:w.buffer.Length()]); err != nil { // write to underlying io.Writer
 			return n, err
 		}
 		p = p[remaining:]
@@ -150,7 +150,7 @@ func (w *encWriterV10) Write(p []byte) (n int, err error) {
 	}
 	for len(p) >= w.payloadSize {
 		w.Seal(w.buffer[:], p[:w.payloadSize])
-		if err = flush(w.dst, w.buffer[:w.buffer.Length()]); err != nil {
+		if err = flush(w.dst, w.buffer[:w.buffer.Length()]); err != nil { // write to underlying io.Writer
 			return n, err
 		}
 		p = p[w.payloadSize:]
@@ -166,7 +166,7 @@ func (w *encWriterV10) Write(p []byte) (n int, err error) {
 func (w *encWriterV10) Close() error {
 	if w.offset > 0 {
 		w.Seal(w.buffer[:], w.buffer[headerSize:headerSize+w.offset])
-		if err := flush(w.dst, w.buffer[:w.buffer.Length()]); err != nil {
+		if err := flush(w.dst, w.buffer[:w.buffer.Length()]); err != nil { // write to underlying io.Writer
 			return err
 		}
 	}
@@ -181,7 +181,7 @@ func flush(w io.Writer, p []byte) error {
 	if err != nil {
 		return err
 	}
-	if n != len(p) {
+	if n != len(p) { // not neccasary if the w follows the io.Writer doc *precisly*
 		return io.ErrShortWrite
 	}
 	return nil
