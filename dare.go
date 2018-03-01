@@ -184,9 +184,10 @@ func (ae *authEncV20) Seal(dst, src []byte)      { ae.seal(dst, src, false) }
 func (ae *authEncV20) SealFinal(dst, src []byte) { ae.seal(dst, src, true) }
 
 func (ae *authEncV20) seal(dst, src []byte, finalize bool) {
-	if finalize {
-		ae.finalized = true
+	if ae.finalized { // callers are not supposed to call Seal(Final) after a SealFinal call happened
+		panic("sio: cannot seal any package after final one")
 	}
+	ae.finalized = finalize
 
 	header := headerV20(dst[:headerSize])
 	header.SetVersion()
