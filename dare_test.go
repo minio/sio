@@ -18,771 +18,496 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
-	"io"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"testing"
 )
 
-var ioTests = []struct {
-	datasize, buffersize, payloadsize int
-}{
-	{datasize: 1, buffersize: 1, payloadsize: maxPayloadSizeV10},                                                       // 0
-	{datasize: 2, buffersize: 1, payloadsize: maxPayloadSizeV10},                                                       // 1
-	{datasize: maxPayloadSizeV10 - 1, buffersize: 1, payloadsize: maxPayloadSizeV10},                                   // 2
-	{datasize: maxPayloadSizeV10, buffersize: 1, payloadsize: maxPayloadSizeV10},                                       // 3
-	{datasize: maxPayloadSizeV10 + 1, buffersize: 1, payloadsize: maxPayloadSizeV10},                                   // 4
-	{datasize: 1, buffersize: headerSizeV10, payloadsize: maxPayloadSizeV10},                                           // 5
-	{datasize: 1024, buffersize: headerSizeV10, payloadsize: maxPayloadSizeV10},                                        // 6
-	{datasize: maxPayloadSizeV10 - 1, buffersize: headerSizeV10, payloadsize: maxPayloadSizeV10},                       // 7
-	{datasize: maxPayloadSizeV10, buffersize: headerSizeV10, payloadsize: maxPayloadSizeV10},                           // 8
-	{datasize: maxPayloadSizeV10 + 1, buffersize: headerSizeV10, payloadsize: maxPayloadSizeV10},                       // 9
-	{datasize: 1, buffersize: maxPayloadSizeV10, payloadsize: maxPayloadSizeV10},                                       // 10
-	{datasize: 32 * 1024, buffersize: maxPayloadSizeV10, payloadsize: maxPayloadSizeV10},                               // 11
-	{datasize: maxPayloadSizeV10 - 1, buffersize: maxPayloadSizeV10, payloadsize: maxPayloadSizeV10},                   // 12
-	{datasize: maxPayloadSizeV10, buffersize: maxPayloadSizeV10, payloadsize: maxPayloadSizeV10},                       // 13
-	{datasize: maxPayloadSizeV10 + 1, buffersize: maxPayloadSizeV10, payloadsize: maxPayloadSizeV10},                   // 14
-	{datasize: 1, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},                          // 15
-	{datasize: 7 * 1024, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},                   // 16
-	{datasize: maxPayloadSizeV10 - 1, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},      // 17
-	{datasize: maxPayloadSizeV10, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},          // 18
-	{datasize: maxPayloadSizeV10 + 1, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},      // 19
-	{datasize: 1, buffersize: headerSizeV10 + maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},          // 20
-	{datasize: 2 * maxPayloadSizeV10, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},      // 21
-	{datasize: 2*maxPayloadSizeV10 - 1, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},    // 22
-	{datasize: 2*maxPayloadSizeV10 + 1, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10},    // 23
-	{datasize: 2*maxPayloadSizeV10 + 1024, buffersize: maxPayloadSizeV10 + tagSizeV10, payloadsize: maxPayloadSizeV10}, // 24
-	{datasize: 1, buffersize: maxPayloadSizeV10 + 1, payloadsize: maxPayloadSizeV10},                                   // 25
-	{datasize: 2 * maxPayloadSizeV10, buffersize: maxPayloadSizeV10 + 1, payloadsize: maxPayloadSizeV10},               // 26
-	{datasize: 1024*1024 - 1, buffersize: maxPayloadSizeV10 + 1, payloadsize: maxPayloadSizeV10},                       // 27
-	{datasize: 1024 * 1024, buffersize: maxPayloadSizeV10 + 1, payloadsize: maxPayloadSizeV10},                         // 28
-	{datasize: 1024*1024 + 1, buffersize: maxPayloadSizeV10 + 1, payloadsize: maxPayloadSizeV10},                       // 29
-	{datasize: 2 * maxPayloadSizeV10, buffersize: 1024 * 1024, payloadsize: maxPayloadSizeV10},                         // 30
-	{datasize: 3*maxPayloadSizeV10 + 1, buffersize: 3 * maxPayloadSizeV10, payloadsize: maxPayloadSizeV10},             // 31
-	{datasize: 1024 * 1024, buffersize: 2 * 1024 * 1024, payloadsize: maxPayloadSizeV10},                               // 32
-	{datasize: maxPayloadSizeV10 + 1, buffersize: maxPayloadSizeV10 - 1, payloadsize: maxPayloadSizeV10},               // 33
-	{datasize: 1, buffersize: 1, payloadsize: 8 * 1024},                                                                // 34
-	{datasize: 2, buffersize: 1, payloadsize: 16 * 1024},                                                               // 35
-	{datasize: maxPayloadSizeV10 - 1, buffersize: 1, payloadsize: 8 * 1024},                                            // 36
-	{datasize: maxPayloadSizeV10, buffersize: 1, payloadsize: 16 * 1024},                                               // 37
-	{datasize: maxPayloadSizeV10 + 1, buffersize: 1, payloadsize: 32 * 1024},                                           // 38
-	{datasize: 2 * maxPayloadSizeV10, buffersize: maxPayloadSizeV10 + 1, payloadsize: 32 * 1024},                       // 39
-	{datasize: 1024*1024 - 1, buffersize: maxPayloadSizeV10 + 1, payloadsize: 32 * 1024},                               // 40
-	{datasize: 1024 * 1024, buffersize: maxPayloadSizeV10 + 1, payloadsize: 32 * 1024},                                 // 41
-	{datasize: 1024*1024 + 1, buffersize: maxPayloadSizeV10 + 1, payloadsize: 32 * 1024},                               // 42
-	{datasize: 2 * maxPayloadSizeV10, buffersize: 1024 * 1024, payloadsize: 32 * 1024},                                 // 43
-	{datasize: 3*maxPayloadSizeV10 + 1, buffersize: 3 * maxPayloadSizeV10, payloadsize: 1 + 32*1024},                   // 44
-	{datasize: 1024 * 1024, buffersize: 2 * 1024 * 1024, payloadsize: 2 + 32*1024},                                     // 45
-	{datasize: maxPayloadSizeV10 + 1, buffersize: maxPayloadSizeV10 - 1, payloadsize: 3 + 32*1024},                     // 46
-
-}
-
-func dumpDareStream(strm []byte) {
-	i := 0
-	for {
-		hdr := header(strm[i:])
-
-		fmt.Print("[")
-		for i, b := range hdr {
-			fmt.Printf("%02x", b)
-			if i != len(hdr)-1 {
-				fmt.Print(" ")
-			}
-		}
-		fmt.Print("]")
-
-		fmt.Printf(" version=0x%02x, cipher=0x%02x, len=0x%x, sequencenr=0x%x\n", hdr.Version(), hdr.Cipher(), hdr.Len(), hdr.SequenceNumber())
-
-		i += headerSizeV10 + hdr.Len() + tagSizeV10
-		if i == len(strm) {
-			break
-		} else if i > len(strm) {
-			panic(fmt.Sprintf("index larger than stream size, %d, %d", i, len(strm)))
+func isZero(p []byte) bool {
+	for _, v := range p {
+		if v != 0 {
+			return false
 		}
 	}
+	return true
 }
 
-func TestEncrypt(t *testing.T) {
-	key := make([]byte, 32)
-	if _, err := io.ReadFull(rand.Reader, key); err != nil {
-		t.Fatalf("Failed to generate random key: %v", err)
-	}
-	config := Config{Key: key}
-	for i, test := range ioTests {
-		data := make([]byte, test.datasize)
-		if _, err := io.ReadFull(rand.Reader, data); err != nil {
-			t.Fatalf("Test %d: Failed to generate random data: %v", i, err)
-		}
-
-		decrypted, output := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
-
-		if _, err := Encrypt(output, bytes.NewReader(data), config); err != nil {
-			t.Errorf("Test %d: Encryption failed: %v", i, err)
-		}
-		// dumpDareStream(output.Bytes())
-		if n, err := Decrypt(decrypted, output, config); n != int64(test.datasize) || err != nil {
-			t.Errorf("Test %d: Decryption failed: number of bytes: %d - %v", i, n, err)
-		}
-		if !bytes.Equal(data, decrypted.Bytes()) {
-			t.Errorf("Test: %d: Failed to encrypt and decrypt data. %v | %v", i, data, decrypted.Bytes())
-		}
-	}
-}
-
-func TestReader(t *testing.T) {
-	config := Config{Key: make([]byte, 32)}
-	for i, test := range ioTests {
-		data, buffer := make([]byte, test.datasize), make([]byte, test.buffersize)
-		if _, err := io.ReadFull(rand.Reader, data); err != nil {
-			t.Fatalf("Test %d: Failed to generate random data: %v", i, err)
-		}
-
-		encReader, err := EncryptReader(bytes.NewReader(data), config)
-		if err != nil {
-			t.Fatalf("Test %d: Failed to create encrypted reader: %v", i, err)
-		}
-		decReader, err := DecryptReader(encReader, config)
-		if err != nil {
-			t.Fatalf("Test %d: Failed to create decrypted reader: %v", i, err)
-		}
-
-		_, err = io.ReadFull(decReader, buffer)
-		if err == io.ErrUnexpectedEOF && test.buffersize < test.datasize {
-			t.Errorf("Test %d: Reading failed: %v", i, err)
-		}
-		if err != nil && err != io.ErrUnexpectedEOF {
-			t.Errorf("Test %d: Reading failed: %v", i, err)
-		}
-	}
-}
-
-func TestWriter(t *testing.T) {
-	config := Config{Key: make([]byte, 32)}
-	for i, test := range ioTests {
-		data := make([]byte, test.datasize)
-		if _, err := io.ReadFull(rand.Reader, data); err != nil {
-			t.Fatalf("Test %d: Failed to generate random data: %v", i, err)
-		}
-
-		output := bytes.NewBuffer(nil)
-
-		decWriter, err := DecryptWriter(output, config)
-		if err != nil {
-			t.Fatalf("Test %d: Failed to create decrypted writer: %v", i, err)
-		}
-		encWriter, err := EncryptWriter(decWriter, config)
-		if err != nil {
-			t.Fatalf("Test %d: Failed to create encrypted writer: %v", i, err)
-		}
-
-		if _, err := encWriter.Write(data[:1]); err != nil {
-			t.Errorf("Test %d: Writing failed: %v", i, err)
-		}
-		if _, err := encWriter.Write(data[1:]); err != nil {
-			t.Errorf("Test %d: Writing failed: %v", i, err)
-		}
-		if err := encWriter.Close(); err != nil {
-			t.Errorf("Test: %d: Failed to close writer: %v", i, err)
-		}
-		if !bytes.Equal(data, output.Bytes()) {
-			t.Errorf("Test: %d: Failed to encrypt and decrypt data", i)
-		}
-	}
-}
-
-func TestCopy(t *testing.T) {
-	key := make([]byte, 32)
-	if _, err := io.ReadFull(rand.Reader, key); err != nil {
-		t.Fatalf("Failed to generate random key: %v", err)
-	}
-	config := Config{Key: key}
-	for i, test := range ioTests {
-		data, buffer := make([]byte, test.datasize), make([]byte, test.buffersize)
-		if _, err := io.ReadFull(rand.Reader, data); err != nil {
-			t.Fatalf("Test %d: Failed to generate random data: %v", i, err)
-		}
-
-		output := bytes.NewBuffer(nil)
-
-		decWriter, err := DecryptWriter(output, config)
-		if err != nil {
-			t.Fatalf("Test %d: Failed to create decrypted writer: %v", i, err)
-		}
-		encReader, err := EncryptReader(bytes.NewReader(data), config)
-		if err != nil {
-			t.Fatalf("Test %d: Failed to create encrypted reader: %v", i, err)
-		}
-
-		if _, err := io.CopyBuffer(decWriter, encReader, buffer); err != nil {
-			t.Fatalf("Test: %d: Failed to copy: %v", i, err)
-		}
-		if err := decWriter.Close(); err != nil {
-			t.Fatalf("Test: %d: Failed to close writer: %v", i, err)
-		}
-		if !bytes.Equal(data, output.Bytes()) {
-			t.Fatalf("Test: %d: Failed to encrypt and decrypt data", i)
-		}
-	}
-}
-
-type nonceGen struct{ nonce [8]byte }
-
-func (g *nonceGen) Read(p []byte) (n int, err error) {
-	n = copy(p, g.nonce[:])
-	return
-}
-
-var testVectors = []struct {
-	config                  Config
-	data                    []byte
-	header, ciphertext, tag []byte
-}{
-	{
-		config:     Config{CipherSuites: []byte{AES_256_GCM}, Rand: &nonceGen{[8]byte{}}},
-		data:       []byte{0},
-		header:     []byte{16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-		ciphertext: []byte{218},
-		tag:        []byte{245, 10, 224, 169, 227, 81, 137, 91, 231, 37, 240, 4, 78, 104, 89, 213},
-	},
-	{
-		config:     Config{CipherSuites: []byte{AES_256_GCM}, Rand: &nonceGen{[8]byte{1}}},
-		data:       []byte{0, 1},
-		header:     []byte{16, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
-		ciphertext: []byte{52, 114},
-		tag:        []byte{183, 185, 30, 215, 70, 86, 86, 205, 76, 247, 167, 13, 204, 212, 172, 116},
-	},
-	{
-		config:     Config{CipherSuites: []byte{AES_256_GCM}, Rand: &nonceGen{[8]byte{2}}},
-		data:       make([]byte, maxPayloadSizeV10),
-		header:     []byte{16, 0, 255, 255, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0},
-		ciphertext: nil,
-		tag:        []byte{139, 74, 190, 231, 245, 110, 183, 213, 6, 21, 36, 24, 19, 122, 47, 159},
-	},
-	{
-		config: Config{CipherSuites: []byte{AES_256_GCM}, SequenceNumber: 1, Rand: &nonceGen{[8]byte{0, 0, 0, 0, 0, 0, 0, 1}}},
-		data:   make([]byte, 64),
-		header: []byte{16, 0, 63, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-		ciphertext: []byte{
-			77, 72, 228, 176, 217, 81, 153, 241, 230, 45, 149, 149, 71, 84, 134, 164, 150, 103, 100, 162, 2, 50,
-			94, 110, 254, 55, 46, 37, 64, 248, 63, 156, 5, 149, 152, 104, 127, 168, 82, 20, 184, 1, 144, 28, 156,
-			119, 232, 94, 126, 63, 249, 30, 31, 164, 133, 96, 166, 3, 72, 198, 206, 235, 253, 92,
-		},
-		tag: []byte{163, 136, 174, 122, 229, 10, 70, 60, 64, 32, 195, 193, 193, 104, 85, 63},
-	},
-	{
-		config:     Config{CipherSuites: []byte{CHACHA20_POLY1305}, Rand: &nonceGen{[8]byte{}}},
-		data:       []byte{0},
-		header:     []byte{16, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-		ciphertext: []byte{12},
-		tag:        []byte{79, 112, 6, 156, 85, 188, 243, 92, 12, 80, 227, 149, 192, 175, 139, 205},
-	},
-	{
-		config:     Config{CipherSuites: []byte{CHACHA20_POLY1305}, Rand: &nonceGen{[8]byte{1}}},
-		data:       []byte{0, 1},
-		header:     []byte{16, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
-		ciphertext: []byte{203, 33},
-		tag:        []byte{186, 36, 35, 49, 33, 140, 41, 11, 107, 213, 13, 52, 86, 238, 123, 138},
-	},
-	{
-		config:     Config{CipherSuites: []byte{CHACHA20_POLY1305}, Rand: &nonceGen{[8]byte{2}}},
-		data:       make([]byte, maxPayloadSizeV10),
-		header:     []byte{16, 1, 255, 255, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0},
-		ciphertext: nil,
-		tag:        []byte{149, 175, 36, 122, 124, 207, 137, 178, 185, 135, 112, 8, 59, 83, 132, 200},
-	},
-	{
-		config: Config{CipherSuites: []byte{CHACHA20_POLY1305}, SequenceNumber: 1, Rand: &nonceGen{[8]byte{0, 0, 0, 0, 0, 0, 0, 1}}},
-		data:   make([]byte, 64),
-		header: []byte{16, 1, 63, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-		ciphertext: []byte{
-			23, 33, 70, 29, 195, 17, 46, 120, 240, 134, 246, 246, 127, 220, 167, 106, 121, 81, 139, 241, 223, 247,
-			170, 13, 103, 14, 170, 180, 105, 217, 20, 153, 130, 246, 60, 128, 147, 232, 92, 158, 101, 221, 90, 197,
-			18, 218, 210, 248, 34, 91, 17, 207, 245, 217, 85, 42, 85, 206, 91, 204, 119, 136, 246, 245,
-		},
-		tag: []byte{150, 8, 31, 175, 67, 252, 232, 149, 133, 137, 152, 21, 198, 248, 213, 162},
-	},
-}
-
-func TestVectors(t *testing.T) {
-	key, err := hex.DecodeString("000102030405060708090A0B0C0D0E0FF0E0D0C0B0A090807060504030201000")
-	if err != nil {
-		t.Fatalf("Failed to decode key: %v", err)
-	}
-	for i, test := range testVectors {
-		config := test.config
-		config.Key = key
-
-		output := bytes.NewBuffer(nil)
-		encWriter, err := EncryptWriter(output, config)
-		if err != nil {
-			t.Fatalf("Test %d: Failed to create encrypted writer: %v", i, err)
-		}
-		if _, err = encWriter.Write(test.data); err != nil {
-			t.Fatalf("Test %d: Failed to write to encrypted writer: %v", i, err)
-		}
-		if err = encWriter.Close(); err != nil {
-			t.Fatalf("Test %d: Failed to close encrypted writer: %v", i, err)
-		}
-
-		out := output.Bytes()
-		if !bytes.Equal(out[:headerSizeV10], test.header) {
-			t.Errorf("Test %d: Header does not match: got: %v want: %v", i, out[:headerSizeV10], test.header)
-		}
-		if test.ciphertext != nil && !bytes.Equal(out[headerSizeV10:len(out)-tagSizeV10], test.ciphertext) {
-			t.Errorf("Test %d: Header does not match: got: %v want: %v", i, out[headerSizeV10:len(out)-tagSizeV10], test.ciphertext)
-		}
-		if !bytes.Equal(out[len(out)-tagSizeV10:], test.tag) {
-			t.Errorf("Test %d: Header does not match: got: %v want: %v", i, out[len(out)-tagSizeV10:], test.tag)
-		}
-
-		decrypted := make([]byte, len(test.data))
-		decReader, err := DecryptReader(output, config)
-		if err != nil {
-			t.Fatalf("Test %d: Failed to create decrypted reader: %v", i, err)
-		}
-		if _, err = io.ReadFull(decReader, decrypted); err != nil {
-			t.Fatalf("Test %d: Failed to read from decrypted reader: %v", i, err)
-		}
-		if !bytes.Equal(decrypted, test.data) {
-			t.Errorf("Test %d: Failed to decrypt encrypted data", i)
-		}
-	}
-}
-
-var maliciousVectors = []struct {
-	config                  Config
-	header, ciphertext, tag []byte
-	err                     error
-}{
-	{
-		config:     Config{},
-		header:     []byte{16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // header too small
-		ciphertext: nil,
-		tag:        nil,
-		err:        errMissingHeader,
-	},
-	{
-		config:     Config{},
-		header:     []byte{15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // bad version
-		ciphertext: []byte{218},
-		tag:        []byte{245, 10, 224, 169, 227, 81, 137, 91, 231, 37, 240, 4, 78, 104, 89, 213},
-		err:        errUnsupportedVersion,
-	},
-	{
-		config:     Config{},
-		header:     []byte{16, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // bad cipher
-		ciphertext: []byte{218},
-		tag:        []byte{245, 10, 224, 169, 227, 81, 137, 91, 231, 37, 240, 4, 78, 104, 89, 213},
-		err:        errUnsupportedCipher,
-	},
-	{
-		config:     Config{},
-		header:     []byte{16, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // unsupported version
-		ciphertext: []byte{218},
-		tag:        []byte{245, 10, 224, 169, 227, 81, 137, 91, 231, 37, 240, 4, 78, 104, 89, 213},
-		err:        errTagMismatch,
-	},
-	{
-		config:     Config{},
-		header:     []byte{16, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // invalid sequence number
-		ciphertext: []byte{218},
-		tag:        []byte{245, 10, 224, 169, 227, 81, 137, 91, 231, 37, 240, 4, 78, 104, 89, 213},
-		err:        errPackageOutOfOrder,
-	},
-	{
-		config:     Config{},
-		header:     []byte{16, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // wrong cipher
-		ciphertext: []byte{218},
-		tag:        []byte{245, 10, 224, 169, 227, 81, 137, 91, 231, 37, 240, 4, 78, 104, 89, 213},
-		err:        errTagMismatch,
-	},
-	{
-		config:     Config{},
-		header:     []byte{16, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // wrong cipher
-		ciphertext: []byte{218},
-		tag:        []byte{245, 10, 224, 169, 227, 81, 137, 91, 231, 37, 240, 4, 78, 104, 89, 213},
-		err:        errTagMismatch,
-	},
-	{
-		config:     Config{},
-		header:     []byte{16, 0, 2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0}, // payload length too large
-		ciphertext: []byte{52, 114},
-		tag:        []byte{183, 185, 30, 215, 70, 86, 86, 205, 76, 247, 167, 13, 204, 212, 172, 116},
-		err:        errPayloadTooShort,
-	},
-	{
-		config:     Config{},
-		header:     []byte{16, 0, 0, 0, 0, 0, 0, 0, 146, 140, 4, 182, 237, 41, 185, 5}, // payload length is one but empty ciphertext
-		ciphertext: []byte{ /*144*/ },
-		tag:        []byte{104, 16, 43, 23, 1, 226, 58, 67, 55, 234, 18, 160, 64, 47, 166, 158},
-		err:        errPayloadTooShort,
-	},
-	{
-		config:     Config{},
-		header:     []byte{16, 0, 2, 0, 0, 0, 0, 0, 30, 2, 115, 248, 75, 180, 105, 205}, // payload length too small (resulting in tag mismatch)
-		ciphertext: []byte{30, 242, 98, 22},
-		tag:        []byte{22, 194, 137, 24, 116, 52, 216, 208, 0, 244, 187, 218, 208, 6, 39, 65},
-		err:        errTagMismatch,
-	},
-	{
-		config:     Config{},
-		header:     []byte{16, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
-		ciphertext: []byte{52, 114, 22}, // ciphertext too long
-		tag:        []byte{183, 185, 30, 215, 70, 86, 86, 205, 76, 247, 167, 13, 204, 212, 172, 116},
-		err:        errTagMismatch,
-	},
-}
-
-func TestMaliciousVectors(t *testing.T) {
-	key, err := hex.DecodeString("000102030405060708090A0B0C0D0E0FF0E0D0C0B0A090807060504030201000")
-	if err != nil {
-		t.Fatalf("Failed to decode key: %v", err)
-	}
-	for i, test := range maliciousVectors {
-		config := test.config
-		config.Key = key
-
-		data := append(test.header, test.ciphertext...)
-		data = append(data, test.tag...)
-		buffer := make([]byte, len(data))
-
-		reader, err := DecryptReader(bytes.NewReader(data), config)
-		if err != nil {
-			t.Fatalf("Test %d: failed to create decrypted reader: %v", i, err)
-		}
-		if _, err = reader.Read(buffer); err != test.err {
-			t.Errorf("Test %d: should fail with: %v but failed with: %v", i, test.err, err)
-		}
-
-		writer, err := DecryptWriter(bytes.NewBuffer(buffer[:0]), config)
-		if err != nil {
-			t.Fatalf("Test %d: failed to create decrypted reader: %v", i, err)
-		}
-		_, wErr := writer.Write(data)
-		cErr := writer.Close()
-		if wErr != test.err && cErr != test.err {
-			t.Errorf("Test %d: should fail with: %v but failed with: write: %v and close: %v", i, test.err, wErr, cErr)
-		}
-	}
-}
-
-var sequenceNumberTest = []struct {
-	sequence    uint32
-	packages    int
-	modify      int
-	badSequence uint32
-}{
-	{sequence: 0, packages: 5, modify: 4, badSequence: 3},
-	{sequence: 1, packages: 7, modify: 2, badSequence: 4},
-	{sequence: 33333, packages: 6, modify: 1, badSequence: 33333},
-	{sequence: 1 << 30, packages: 5, modify: 0, badSequence: 0},
-	{sequence: 4, packages: 8, modify: 7, badSequence: 13},
-}
-
-func TestVerifySequenceNumbers(t *testing.T) {
-	key, err := hex.DecodeString("000102030405060708090A0B0C0D0E0FF0E0D0C0B0A090807060504030201000")
-	if err != nil {
-		t.Fatalf("Failed to decode key: %v", err)
-	}
-
-	for i, test := range sequenceNumberTest {
+func TestSealV10(t *testing.T) {
+	key, _ := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+	randValue, _ := hex.DecodeString("0001020304050607")
+	for i, test := range goldenTestsV10 {
 		config := Config{
+			MinVersion:     Version10,
+			MaxVersion:     Version10,
 			Key:            key,
-			SequenceNumber: test.sequence,
+			SequenceNumber: uint32(i),
+			Rand:           bytes.NewReader(randValue),
+			PayloadSize:    maxPayloadSize,
 		}
-
-		data := make([]byte, maxPayloadSizeV10*test.packages)
-		if _, err = io.ReadFull(rand.Reader, data); err != nil {
-			t.Fatalf("Test %d: Failed to generate random data: %v", i, err)
-		}
-		dst := make([]byte, (headerSizeV10+maxPayloadSizeV10+tagSizeV10)*test.packages)
-		if _, err = Encrypt(bytes.NewBuffer(dst[:0]), bytes.NewReader(data), config); err != nil {
-			t.Errorf("Test %d: Failed to encrypt data: %v", i, err)
-		}
-
-		if _, err = Decrypt(bytes.NewBuffer(nil), bytes.NewReader(dst), config); err != nil {
-			t.Errorf("Test %d: Failed to decrypt data: %v", i, err)
-		}
-
-		unmodifiedHeader := make([]byte, headerSizeV10)
-		header := header(dst[(headerSizeV10+maxPayloadSizeV10+tagSizeV10)*test.modify:])
-		copy(unmodifiedHeader, header)
-
-		header.SetSequenceNumber(test.badSequence)
-		if _, err = Decrypt(bytes.NewBuffer(nil), bytes.NewReader(dst), config); err == nil {
-			t.Errorf("Test %d: Expected to report error while decrypting but decryption passed successfully", i)
-		}
-
-		decWriter, err := DecryptWriter(bytes.NewBuffer(nil), config)
+		config.CipherSuites = []byte{byte(i % 2)}
+		ciphertext, err := hex.DecodeString(test)
 		if err != nil {
-			t.Fatalf("Test %d: Failed to create decrypting writer: %v", i, err)
+			t.Errorf("Test %d (golden): failed to decode ciphertext: %v", i, err)
 		}
-		if _, err = io.Copy(decWriter, bytes.NewReader(dst)); err == nil {
-			t.Errorf("Test %d: Expected to report error while decrypting but decryption passed successfully", i)
+
+		ad, err := newAuthEncV10(&config)
+		if err != nil {
+			t.Errorf("Test %d (golden): failed to create authenticated encryption scheme: %v", i, err)
 		}
-		copy(header, unmodifiedHeader)
+
+		plaintext := make([]byte, len(ciphertext)-32)
+		encrypted := make([]byte, len(ciphertext))
+		ad.Seal(encrypted, plaintext)
+		if !bytes.Equal(encrypted, ciphertext) {
+			t.Errorf("Test %d: ciphertext mismatch", i)
+		}
 	}
 }
 
-func testFile(t *testing.T, file string) {
-	data, err := ioutil.ReadFile(file)
-	if err != nil {
-		t.Errorf("Failed to read file: %s - %v", file, err)
-	}
-	if err != nil || len(data) == 0 {
-		return // exit out for empty files or error
-	}
+func TestOpenV10(t *testing.T) {
+	key, _ := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 
-	key, err := hex.DecodeString("000102030405060708090A0B0C0D0E0FF0E0D0C0B0A090807060504030201000")
-	if err != nil {
-		t.Fatalf("Failed to decode key: %v", err)
-	}
-	config := Config{Key: key}
-
-	decrypted, output := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
-
-	if _, err := Encrypt(output, bytes.NewReader(data), config); err != nil {
-		t.Errorf("Encryption failed: %v", err)
-	}
-	if n, err := Decrypt(decrypted, output, config); n != int64(len(data)) || err != nil {
-		t.Errorf("Decryption failed: number of bytes: %d - %v", n, err)
-	}
-	if !bytes.Equal(data, decrypted.Bytes()) {
-		t.Errorf("Failed to encrypt and decrypt data. %v | %v", data, decrypted.Bytes())
-	}
-}
-
-func TestFiles(t *testing.T) {
-
-	fileList := []string{}
-	filepath.Walk(".", func(path string, f os.FileInfo, err error) error {
-		if !f.IsDir() {
-			fileList = append(fileList, path)
-		}
-		return nil
-	})
-
-	for _, file := range fileList {
-		testFile(t, file)
-	}
-}
-
-var appendTests = []struct {
-	startSequence uint32
-	datasize      int
-	parts         int
-}{
-	{startSequence: 0, datasize: 512 * 1024, parts: 4},
-	{startSequence: 7, datasize: 64 * 1024, parts: 9},
-	{startSequence: 2, datasize: 64*1024 - 1, parts: 6},
-	{startSequence: 1, datasize: 64*1024 + 1, parts: 11},
-	{startSequence: 33333, datasize: 1, parts: 17},
-	{startSequence: 0, datasize: 64*1024 + 17, parts: 2},
-	{startSequence: 5, datasize: 64*1024 - 100, parts: 4},
-}
-
-func TestAppending(t *testing.T) {
-	for i, test := range appendTests {
-		key := make([]byte, 32)
-		if _, err := io.ReadFull(rand.Reader, key); err != nil {
-			t.Fatalf("Failed to generate random key: %v", err)
-		}
-		data := make([]byte, test.datasize)
-		if _, err := io.ReadFull(rand.Reader, data); err != nil {
-			t.Fatalf("Failed to generate random data: %v", err)
-		}
-
-		dst := bytes.NewBuffer(nil)
+	for i, test := range goldenTestsV10 {
 		config := Config{
+			MinVersion:     Version10,
+			MaxVersion:     Version10,
+			CipherSuites:   []byte{AES_256_GCM, CHACHA20_POLY1305},
 			Key:            key,
-			SequenceNumber: test.startSequence,
+			SequenceNumber: uint32(i),
+			Rand:           rand.Reader,
+			PayloadSize:    maxPayloadSize,
 		}
-		for j := 0; j < test.parts; j++ {
-			if _, err := Encrypt(dst, bytes.NewReader(data), config); err != nil {
-				t.Fatalf("Test %d: Failed to encrypt %d part: %v", i, j, err)
-			}
-			config.SequenceNumber += uint32(test.datasize / maxPayloadSizeV10)
-			if test.datasize%maxPayloadSizeV10 > 0 {
-				config.SequenceNumber++
-			}
-		}
-		if _, err := Decrypt(bytes.NewBuffer(nil), bytes.NewReader(dst.Bytes()), Config{Key: key, SequenceNumber: test.startSequence}); err != nil {
-			t.Errorf("Test %d: Failed to decrypt concatenated data: %v", i, err)
-		}
-	}
-}
-
-type devNull struct{ zero [8 * 1024]byte }
-
-func (r *devNull) Read(p []byte) (n int, err error) {
-	if len(p) < len(r.zero) {
-		n = copy(p, r.zero[:len(p)])
-		return
-	}
-	for len(p) >= len(r.zero) {
-		n += copy(p, r.zero[:])
-		p = p[len(r.zero):]
-	}
-	if len(p) > 0 {
-		n += copy(p, r.zero[:len(p)])
-	}
-	return
-}
-
-func TestLargeStream(t *testing.T) {
-	if !testing.Short() {
-		t.Skip("Skipping TestLargeStream")
-	}
-	key := make([]byte, 32)
-	if _, err := io.ReadFull(rand.Reader, key); err != nil {
-		t.Fatalf("Failed to generate random key: %v", err)
-	}
-
-	config := Config{Key: key}
-
-	encReader, err := EncryptReader(new(devNull), config)
-	if err != nil {
-		t.Fatalf("Failed to create encrypted reader %v", err)
-	}
-	decReader, err := DecryptReader(encReader, config)
-	if err != nil {
-		t.Fatalf("Failed to create decrypted reader %v", err)
-	}
-	decWriter, err := DecryptWriter(ioutil.Discard, config)
-	if err != nil {
-		t.Fatalf("Failed to create decrypted writer %v", err)
-	}
-	encWriter, err := EncryptWriter(decWriter, config)
-	if err != nil {
-		t.Fatalf("Failed to create encrypted writer %v", err)
-	}
-
-	const streamsize = 50 * 1024 * 1024 * 1024
-	buffer := make([]byte, 1024*1024+1)
-	if _, err := io.CopyBuffer(encWriter, io.LimitReader(decReader, streamsize), buffer); err != nil {
-		t.Errorf("Failed to copy data: %v", err)
-	}
-	if err = encWriter.Close(); err != nil {
-		t.Errorf("Failed to close encrypted writer: %v", err)
-	}
-}
-
-// Benchmarks
-
-func BenchmarkEncryptReader_8KB(b *testing.B)   { benchmarkEncryptRead(1024, b) }
-func BenchmarkEncryptReader_64KB(b *testing.B)  { benchmarkEncryptRead(64*1024, b) }
-func BenchmarkEncryptReader_512KB(b *testing.B) { benchmarkEncryptRead(512*1024, b) }
-func BenchmarkEncryptReader_1MB(b *testing.B)   { benchmarkEncryptRead(1024*1024, b) }
-
-func BenchmarkDecryptReader_8KB(b *testing.B)   { benchmarkDecryptRead(1024, b) }
-func BenchmarkDecryptReader_64KB(b *testing.B)  { benchmarkDecryptRead(64*1024, b) }
-func BenchmarkDecryptReader_512KB(b *testing.B) { benchmarkDecryptRead(512*1024, b) }
-func BenchmarkDecryptReader_1MB(b *testing.B)   { benchmarkDecryptRead(1024*1024, b) }
-
-func BenchmarkEncryptWriter_8KB(b *testing.B)   { benchmarkEncryptWrite(1024, b) }
-func BenchmarkEncryptWriter_64KB(b *testing.B)  { benchmarkEncryptWrite(64*1024, b) }
-func BenchmarkEncryptWriter_512KB(b *testing.B) { benchmarkEncryptWrite(512*1024, b) }
-func BenchmarkEncryptWriter_1MB(b *testing.B)   { benchmarkEncryptWrite(1024*1024, b) }
-
-func BenchmarkDecryptWriter_8KB(b *testing.B)   { benchmarkDecryptWrite(1024, b) }
-func BenchmarkDecryptWriter_64KB(b *testing.B)  { benchmarkDecryptWrite(64*1024, b) }
-func BenchmarkDecryptWriter_512KB(b *testing.B) { benchmarkDecryptWrite(512*1024, b) }
-func BenchmarkDecryptWriter_1MB(b *testing.B)   { benchmarkDecryptWrite(1024*1024, b) }
-
-func benchmarkEncryptRead(size int64, b *testing.B) {
-	data := make([]byte, size)
-	buffer := make([]byte, 32+size*(size/(64*1024)+32))
-	config := Config{Key: make([]byte, 32)}
-	b.SetBytes(size)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		reader, err := EncryptReader(bytes.NewReader(data), config)
+		ciphertext, err := hex.DecodeString(test)
 		if err != nil {
-			b.Fatal(err)
+			t.Errorf("Test %d (golden): failed to decode ciphertext: %v", i, err)
 		}
-		if _, err := io.ReadFull(reader, buffer); err != nil && err != io.ErrUnexpectedEOF {
-			b.Fatal(err)
+
+		plaintext := make([]byte, len(ciphertext)-32)
+		ad, err := newAuthDecV10(&config)
+		if err != nil {
+			t.Errorf("Test %d (golden): failed to create authenticated decryption scheme: %v", i, err)
+		}
+
+		if err = ad.Open(plaintext, ciphertext); err != nil {
+			t.Errorf("Test %d (golden): failed to open ciphertext: %v", i, err)
+		}
+		if !isZero(plaintext) {
+			t.Errorf("Test %d (golden): decryption failed", i)
+		}
+	}
+
+	for i, test := range invalidTestsV10 {
+		config := Config{
+			MinVersion:     Version10,
+			MaxVersion:     Version10,
+			Key:            key,
+			SequenceNumber: uint32(i),
+			Rand:           rand.Reader,
+		}
+		ciphertext, err := hex.DecodeString(test)
+		if err != nil {
+			t.Errorf("Test %d (invalid): failed to decode ciphertext: %v", i, err)
+		}
+
+		plaintext := make([]byte, len(ciphertext)-32)
+		ad, err := newAuthDecV10(&config)
+		if err != nil {
+			t.Errorf("Test %d (invalid): failed to create authenticated decryption scheme: %v", i, err)
+		}
+
+		if err = ad.Open(plaintext, ciphertext); err == nil {
+			t.Errorf("Test %d (invalid): successfully opened modifed package", i)
 		}
 	}
 }
 
-func benchmarkDecryptRead(size int64, b *testing.B) {
-	data := make([]byte, size)
-	config := Config{Key: make([]byte, 32)}
-	encrypted := bytes.NewBuffer(nil)
-	encWriter, err := EncryptWriter(encrypted, config)
-	if err != nil {
-		b.Fatalf("Failed to create encrypted writer: %v", err)
-	}
-	if _, err := encWriter.Write(data); err != nil {
-		b.Fatalf("Failed to write encrypted data: %v", err)
-	}
-	if err := encWriter.Close(); err != nil {
-		b.Fatalf("Failed to close encrypted writer: %v", err)
-	}
-
-	b.SetBytes(size)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		reader, err := DecryptReader(bytes.NewReader(encrypted.Bytes()), config)
-		if err != nil {
-			b.Fatal(err)
+func TestSealV20(t *testing.T) {
+	key, _ := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+	randValue, _ := hex.DecodeString("000102030405060708090a0b")
+	for i, test := range goldenTestsV20 {
+		config := Config{
+			MinVersion:     Version20,
+			MaxVersion:     Version20,
+			Key:            key,
+			SequenceNumber: uint32(i),
+			Rand:           bytes.NewReader(randValue),
+			PayloadSize:    maxPayloadSize,
 		}
-		if _, err := io.ReadFull(reader, data); err != nil && err != io.EOF {
-			b.Fatal(err)
+		config.CipherSuites = []byte{byte(i % 2)}
+		ciphertext, err := hex.DecodeString(test)
+		if err != nil {
+			t.Errorf("Test %d (golden): failed to decode ciphertext: %v", i, err)
+		}
+
+		ad, err := newAuthEncV20(&config)
+		if err != nil {
+			t.Errorf("Test %d (golden): failed to create authenticated encryption scheme: %v", i, err)
+		}
+
+		plaintext := make([]byte, len(ciphertext)-32)
+		encrypted := make([]byte, len(ciphertext))
+		ad.SealFinal(encrypted, plaintext)
+		if !bytes.Equal(encrypted, ciphertext) {
+			t.Errorf("Test %d: ciphertext mismatch", i)
 		}
 	}
 }
 
-func benchmarkEncryptWrite(size int64, b *testing.B) {
-	data := make([]byte, size)
-	buffer := make([]byte, 32+size*(size/(64*1024)+32))
-	config := Config{Key: make([]byte, 32)}
-	b.SetBytes(size)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		encryptWriter, err := EncryptWriter(bytes.NewBuffer(buffer[:0]), config)
+func TestOpenV20(t *testing.T) {
+	key, _ := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+
+	for i, test := range goldenTestsV20 {
+		config := Config{
+			MinVersion:     Version20,
+			MaxVersion:     Version20,
+			CipherSuites:   []byte{AES_256_GCM, CHACHA20_POLY1305},
+			Key:            key,
+			SequenceNumber: uint32(i),
+			Rand:           rand.Reader,
+		}
+		ciphertext, err := hex.DecodeString(test)
 		if err != nil {
-			b.Fatal(err)
+			t.Errorf("Test %d (golden): failed to decode ciphertext: %v", i, err)
 		}
-		if _, err = encryptWriter.Write(data); err != nil {
-			b.Fatal(err)
+
+		plaintext := make([]byte, len(ciphertext)-32)
+		ad, err := newAuthDecV20(&config)
+		if err != nil {
+			t.Errorf("Test %d (golden): failed to create authenticated decryption scheme: %v", i, err)
 		}
-		if err = encryptWriter.Close(); err != nil {
-			b.Fatal(err)
+
+		if err = ad.Open(plaintext, ciphertext); err != nil {
+			t.Errorf("Test %d (golden): failed to open ciphertext: %v", i, err)
+		}
+		if !isZero(plaintext) {
+			t.Errorf("Test %d (golden): decryption failed", i)
+		}
+	}
+
+	for i, test := range invalidTestsV20 {
+		config := Config{
+			MinVersion:     Version20,
+			MaxVersion:     Version20,
+			CipherSuites:   []byte{AES_256_GCM, CHACHA20_POLY1305},
+			Key:            key,
+			SequenceNumber: uint32(i),
+			Rand:           rand.Reader,
+		}
+		ciphertext, err := hex.DecodeString(test)
+		if err != nil {
+			t.Errorf("Test %d (invalid): failed to decode ciphertext: %v", i, err)
+		}
+
+		plaintext := make([]byte, len(ciphertext)-32)
+		ad, err := newAuthDecV20(&config)
+		if err != nil {
+			t.Errorf("Test %d (invalid): failed to create authenticated decryption scheme: %v", i, err)
+		}
+
+		if err = ad.Open(plaintext, ciphertext); err == nil {
+			t.Errorf("Test %d (invalid): successfully opened modifed package", i)
 		}
 	}
 }
 
-func benchmarkDecryptWrite(size int64, b *testing.B) {
-	data := make([]byte, size)
-	config := Config{Key: make([]byte, 32)}
-	encrypted := bytes.NewBuffer(nil)
-	encWriter, err := EncryptWriter(encrypted, config)
-	if err != nil {
-		b.Fatalf("Failed to create encrypted writer: %v", err)
-	}
-	if _, err := encWriter.Write(data); err != nil {
-		b.Fatalf("Failed to write encrypted data: %v", err)
-	}
-	if err := encWriter.Close(); err != nil {
-		b.Fatalf("Failed to close encrypted writer: %v", err)
-	}
+var invalidTestsV10 = []string{
+	"110000000000000000010203040506077eda3bd68d5fb40f5579e61ff2c94c5b20",                                   // invalid version number
+	"20010100010000000001020304050607cbc0fd42bdb3dc957dfb70ebdba13c56b6d6",                                 // invalid version number
+	"10020200020000000001020304050607426fb9754fa4a3207e3dcf0e15f27660de6235",                               // invalid cipher ID
+	"10100300030000000001020304050607bf90f9bac4e1b9a0a107595a2079b93e536fdec3",                             // invalid cipher ID
+	"10000300040000000001020304050607a0f419b01663fe8e4ef68c6a5149b0ad3ba9c53697",                           // invalid payload length
+	"100106000500000000010203040506073916788fc83b331e99d827ed23cf712798f90c85a69e",                         // invalid payload length
+	"10000601060000000001020304050607eac91ebf8257fa7b1ced7e3c6b7344beea4b437a53746b",                       // invalid payload length
+	"1001070F070000000001020304050607eed3479ac9c86dc768a4d39085f8ea51aaa60b7569fd7423",                     // invalid payload length
+	"10000800090000000001020304050607a7cc8d09ab9b585f62b320cbd79ce151b7d8a71a2710fd73bf",                   // invalid sequence number
+	"10010900070000000001020304050607abbb4f40edecc42ed11f4cb95b159122f1f05cb39dad4ca7cdca",                 // invalid sequence number
+	"10000a000a0100000001020304050607e15d31c60c7da60226b93abeb9c856c4e0055f3dc863b957d73ef6",               // invalid sequence number
+	"10010b000b00010000010203040506070da6806f22eb5e3727f4da4316be0af3c2feb142bed662b07c6c4917",             // invalid sequence number
+	"10000c000c0000000000020304050607a30672aeb9bd814042bf4705b9a1aa08d39e18a110aeba1e5d5fade412",           // invalid random value
+	"10010d000d00000000010203040506083504246c486df9573588fec833589f550fc0c779b8234075e1d43caca883",         // invalid random value
+	"10000e000e0000000001020304050607e560df38a0df89f88abf63ff42baf373e04066e2bf34e3adf308746abf99b4",       // invalid ciphertext
+	"10010f000f0000000001020304050607c56126b3c0eb23b56819637c5595e5575ba33fd3512d0c4a041d372c97cd3801",     // invalid ciphertext
+	"10001000100000000001020304050607ac8be00b7b8996084d3d2ad1c98c3019d04f896147bb34cc656346c560caadd4fc",   // invalid authentication tag
+	"10011100110000000001020304050607ec6ab1dad42dcc0a3e41e14c041e733d3178ca14fe3b158392b07e441b7e816c2534", // invalid authentication tag
+}
 
-	b.SetBytes(size)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		decryptWriter, err := DecryptWriter(bytes.NewBuffer(data[:0]), config)
-		if err != nil {
-			b.Fatal(err)
-		}
-		if _, err := decryptWriter.Write(encrypted.Bytes()); err != nil {
-			b.Fatal(err)
-		}
-		if err := decryptWriter.Close(); err != nil {
-			b.Fatal(err)
-		}
-	}
+var goldenTestsV10 = []string{
+	"100000000000000000010203040506077eda3bd68d5fb40f5579e61ff2c94c5b20",
+	"10010100010000000001020304050607cbc0fd42bdb3dc957dfb70ebdba13c56b6d6",
+	"10000200020000000001020304050607426fb9754fa4a3207e3dcf0e15f27660de6235",
+	"10010300030000000001020304050607bf90f9bac4e1b9a0a107595a2079b93e536fdec3",
+	"10000400040000000001020304050607a0f419b01663fe8e4ef68c6a5149b0ad3ba9c53697",
+	"100105000500000000010203040506073916788fc83b331e99d827ed23cf712798f90c85a69e",
+	"10000600060000000001020304050607eac91ebf8257fa7b1ced7e3c6b7344beea4b437a53746b",
+	"10010700070000000001020304050607eed3479ac9c86dc768a4d39085f8ea51aaa60b7569fd7423",
+	"10000800080000000001020304050607a7cc8d09ab9b585f62b320cbd79ce151b7d8a71a2710fd73bf",
+	"10010900090000000001020304050607abbb4f40edecc42ed11f4cb95b159122f1f05cb39dad4ca7cdca",
+	"10000a000a0000000001020304050607e15d31c60c7da60226b93abeb9c856c4e0055f3dc863b957d73ef6",
+	"10010b000b00000000010203040506070da6806f22eb5e3727f4da4316be0af3c2feb142bed662b07c6c4917",
+	"10000c000c0000000001020304050607a30672aeb9bd814042bf4705b9a1aa08d39e18a110aeba1e5d5fade412",
+	"10010d000d00000000010203040506073504246c486df9573588fec833589f550fc0c779b8234075e1d43caca883",
+	"10000e000e0000000001020304050607f560df38a0df89f88abf63ff42baf373e04066e2bf34e3adf308746abf99b4",
+	"10010f000f0000000001020304050607c56127b3c0eb23b56819637c5595e5575ba33fd3512d0c4a041d372c97cd3801",
+	"10001000100000000001020304050607ac8be00b7b8996084d3d2ad1c98c3019d04f896147bb34cc656d46c560caadd4fc",
+	"10011100110000000001020304050607ec6ab1dad42dcc0a3e41e14c041e733d3178ca14fe3b158392b07e541b7e816c2534",
+	"10001200120000000001020304050607e8492608971c07e53ea913634dfcdb517142d8ce35c461339c8048a3a8a54c6f1d022f",
+	"10011300130000000001020304050607542fb592cf2109caa1f4f430090d2247263d163ad8278f114ab2061eae8f6b960ad71ea4",
+	"100014001400000000010203040506070458000d5efeeca443981fb95f1050a8a7e25348227bcfdf5a73cc75afe181e6d861f553ec",
+	"100115001500000000010203040506076d3a7950c950dbc732060e07c7d8978c21441b8336780e84df8030c0f7755cb76a05275c3a29",
+	"100016001600000000010203040506072797849df80f37b984d0b9d249f98197e6e6b3140227a874385c0d4c56ad1a5c3b8b9620b4f254",
+	"10011700170000000001020304050607e6e7d7432aaea3cc661b94f75a97abdf8ce46fbf1f1caec2a04ba49c9dbd37e29488a9c2674de353",
+	"1000180018000000000102030405060777d6da975b92526f075fa08fe10d97f30dc6400cda5819eff13601c57d3c469130fccbde860e02afe2",
+	"10011900190000000001020304050607cb6949ec35e1df9e5cc240c65258c8109b7a483b70b54bfa81f54bece674060965afd80a37f3f76244cf",
+	"10001a001a0000000001020304050607ebfda480123bcf60bc9ca3480061ad9e59bd4018373e51cf74e96d6cf7e7c7fae33e6fe244f4c946d2762d",
+	"10011b001b0000000001020304050607597b10cae6891c837db804fc45effb0fcf5e1ac4a9d7c9c4f0b7f1fa18a85a656ef278a94c457894f97a252f",
+	"10001c001c0000000001020304050607daa7806597d8e089b911e4f65b24a6e7a3b55176cac8e0a665d7ae6056b8512dfb109f6bc38cc05a75267e34e1",
+	"10011d001d0000000001020304050607e968aa79006dfc1eb3ec77838dfcbdb804e5dd1a5a52be9748662e7eb9d08c4c6795e7efcd30b55075f4320c242f",
+	"10001e001e0000000001020304050607ff3ce1876d0dd946b8d06f82e412fd9ea38e87139f4e72d4358f34e27c4fc870c3db4fa9bf47247939d00288241d31",
+	"10011f001f0000000001020304050607af8ba423f43bfcaf6b52c509a8454966447bb3aa9184dc8372dba2dc36aa8feb296c1f049ea84995d0c2353556ac1419",
+	"10002000200000000001020304050607f5907b85cfaf3c7395a28c0e5f06a7c39da8c1ae2bdd70314b007de18adc8df429b40dce1af05f001e6c0acc761b337980",
+	"10012100210000000001020304050607f460f0286c3499c9a26957722bbb4d8a01accd35c8596db34b4546b87853686a4a5e9c8e5c3012303861c542593ad2f9a68f",
+	"100022002200000000010203040506071b154479e3949f73d5b4caaf6777b301714327177b72bc3c5c6f5a6f17caf87da7e8b572e7d2f43f35dd41421c15d155831a33",
+	"10012300230000000001020304050607739e5664ce14a5b7a1bcd27ea214d32a0e5e9a0fddec7e17115c5ee35014c18806060db20bcc03c0eca52521f55cf45a305f739c",
+	"10002400240000000001020304050607be3c41c25d564e78fe2ffa48ac7c0c1a8b05ae10eb518f64e864a14ccd1fefca6470e96b29e4c5ae84f49a252c47fedcb667e12978",
+	"10012500250000000001020304050607c77a7839c38ee52d08828650c784d25f43bdffb7a3aa2ddcb33599120b1547a5f10e266e0b87e8ba216c6c1af6d59a4d263750333b1f",
+	"10002600260000000001020304050607cc19d68547a89c0a985a1157f82549ee46029c6f899153c8d1a0eb890e3307f766db34970322ab8fd914785472ceba20848ac82ee34af2",
+	"10012700270000000001020304050607b5429a4e4030396192c970b260b783d8362e724754d48850f1c1291bb5d415a23e7fc8650663c88a5cd28ef59cf4dffdd6ded14db5046f53",
+	"100028002800000000010203040506073f98ac79f04383ca6c500bc0887b796f93eda970e8ab490a024340e9bf8f8d5ff675b95dd2e04d9150e7960861a22e2d658c323ecb46d78027",
+	"100129002900000000010203040506074daf6cc0d9e2a9ec8f9040113e2523827d9395b8b035d51b5def998a9f04e4762e39b4bcf8c139ab4e8163efea1b1661919bf26ea28b4ff17a79",
+	"10002a002a000000000102030405060797a0f12a7659f8ca5ef76ff70820228222ea3218e7aa718014ce7a59b1b5cdd2c0e8de0b04a1d56316379ea576eb828aa6b97b38e2abe03f2687a6",
+	"10012b002b00000000010203040506073001da273113f6744d5bbe9705bd85bc828216f3f2fd5b3d8b18436fb9fa7b8a44b164960fe182a2be0e3181696d9b9546436f336c2a05c836fc775f",
+	"10002c002c0000000001020304050607a4b8364bd1e7e3f1b6f7ff0caaa112f3739030bbf1a24b2f174d9156a30b772bb5dbd0cf5bdc01e0d5eec5ab0d36ee8d98f3429a5cb67f7d79379fcd68",
+	"10012d002d000000000102030405060738a270e3e58be031e7d1339b635de59c18c3eb351a549b2b81f7f8ade21e37ebb2f1e38f0863ee93559150ee1ff9b45cb83f4850c6e0a59d99db16551c02",
+	"10002e002e00000000010203040506077dd6f560c0cfa340195310e3d97c2b8b88ebbad425466fd60c8f675932b040067e737f591eb4955ed229cb5e5c4e2e8d7450d66e01d62b2642360f882948dc",
+	"10012f002f00000000010203040506079b733b547f561b3ef4d0c90e6fa4aefd7d4d7010cd21a1d17e06e9e759b19b5b095a8df6d8267ba535829ba144ea7b24b3eadebb36a6c2753b763506fc1685d8",
+	"10003000300000000001020304050607336000cd5c63735f96d366c0388cef49c6e83fd71f2ed894421c87d729b9bd8ee7bc99d9a71336084f8e43afde2462d75988d3cd67c8d277070cc63fdc1440084e",
+	"10013100310000000001020304050607cb9ca60f1a40844a7328e44c781849db397615461b63f60c8256d3e8b85f5de109f05bf356a474efd45c0841e372f0d901d36b3c514324035a5429548b6843b2b24d",
+	"10003200320000000001020304050607c220662833381e62d5f1142e6e106ea8c0573d531aeaaa3790ae8a65e0af406dcd1f28ded4c87ca69e3e4002540381907ee4a7aaa84a608c166a9cf30cf6ece1bb20b1",
+	"100133003300000000010203040506076cb72847aee01f1fa8778489f9ca3cb6356faf2f9c71e072a0587e7f4b760ffba26241affe8c6be273512f05032ff6fff2e00270ff0be99160d180320035d38bef7db938",
+	"1000340034000000000102030405060705798fd911cdd5715f5b9ea8049ba1e457819170844d71f61e92c32d55f620c7868d6f730b46fc066b220c0c3c8e7d0230b2250af6a5aeac18f03a6b3ac7f11109c4d4b0fe",
+	"1001350035000000000102030405060711d61224ef214e20af78e5a64c54b772b373ccc103c104e3b0a71df0ac71725394d3d313ec27891a524add097ddee485e5583f7f53ee7da13a4bed26ea76c62d1e9a9a59ccd2",
+	"10003600360000000001020304050607b27a900dde206173d252a5a7cd5a014d61de0dd4a3c3f32793c1a624caceb8a07a371cafd629a54a6e9d7fd955f4f45029d23c25b741a82ce470eb820942edbd15f191556b4343",
+	"10013700370000000001020304050607846d716d93f40a51dd7db81a2f407dfc4de19cfb3913c7d350f99ca212474461efc1bd9e12ab242fea553323b33c4a806a00b8c8af62df831b6c470577927e7cb69f8407da7df8ef",
+	"1000380038000000000102030405060768d47e26d8f5e301aad4e570441b8f1361fd7821c099e1e50e26cdfd72e3798fbdb8c88ef2c046360c64d55e952241c6244adb2252bd1d05123f5f5d7b5a21269030a50e5adfd8e960",
+	"100139003900000000010203040506071ba24fb4470546a0acea2ae01aa0a0ad6b4cdc343721cc7dc8a64ef100465692f4c1e983da04226f592063294465ace4aade73a2f685115e9415533c34ba209bfe04214e0053d3953c49",
+	"10003a003a0000000001020304050607abe194aae3743288452759779b45a759c5f6ac975125d3a171594a34c36ea71300147686161388fec17ae48725dfe7c44be412bd09c92063e3fdb3de6307c1ff00ae5b9faf290a6fddb556",
+	"10013b003b000000000102030405060749aa92f914efdbf4e00bf32ca16921c787660bd5a5640af7ebe0f221d8180811afb0214f45d5c2fc42432125ae7bc697229c3f86b63b5715e629515809b27d3524db7ef95d837c4e54d9cb53",
+	"10003c003c0000000001020304050607c802770db9b99cb994a1f9356276030f2d8f9bdd715c1f3a62e47b1652312781eaa0ac7937029deb999c61f21438a6927cc88c8e5d5deaf11cbcc1f24fcf17eae8da41eef0261ae11aec6b872e",
+	"10013d003d0000000001020304050607442edce0cf7f463174e8e7c21d7c7b41389e8ab200104e261a8c9164f18ebcb2110e792a09e4a9b3ea362ff27c0b786b81410d11dc3613a09ce7ed06a31c3bb2526b0e8cd08010cf158fc789448f",
+	"10003e003e0000000001020304050607b2a55687b2d1fb9a28adac07e1ca290f0cd290db0ed6d716c5bc61fc4b53bf6d097baf612593a0cb421a69c43fb34bf0d87e13e36f7e858abd16aeda99a2141d1ed9c5a0ed77fdb3466e2b391dc49a",
+	"10013f003f0000000001020304050607903b36c69383eb0f8a2695ab8cf3d9451333b6e4cfa0810ec1ba27a9ad220818e9d880e801492f65971c55faa86fb1a0356e8cb4d0c4a0236d37f44faf5b8d5978d41fce6f0e8e1188e6e4297a216589",
+	"10004000400000000001020304050607051eba341d111da335a403e4954590e7b60110332014e840ad77e97ff31aa199a5608f221c0c20a700e9e4b6901c2b1611bcda33b7ad9e3c30406237bffb822fac9f6ad3dc47cdccadfa341ca7c49736f5",
+	"1001410041000000000102030405060740e4f11d84c90e32c9be64210593ca8ed199f216a73766097aafc76dd028ee675098006be1c305e6762d24b7aaabce7e1a803d94c475fb7a0efb007e1923a8f9de6beb716da15fe87609455162b6b5fd59a2",
+	"1000420042000000000102030405060730f08c673084b053fb669fc9f53e7ea9071bb0db7c2275a60f601cf03238fb5b6a3a909e3e8ae57808b7a6af497f21284852976a53503ad0548824734312562d9ba5542bcda7a78c66410b30bbd4811a703e90",
+	"10014300430000000001020304050607fc506bcd3052d54e1847201230b5a0a5975204b86e4d004684f634ba3f2850e8f6c83b4e556bb653a66fc3a6831b1e16f7bc2c4ba8b7f601466d30d04665522cbf9b2eccf3d64ac50306b6c1bb8a9c4a71b9213c",
+	"10004400440000000001020304050607b5e67205a7e3a338c03161bc73f2f1c341f6dd182c378c812c5211e9dcddf924fc3c069309667c7bd7e9a72002b179747f283618662f9c69df179520e6d7cdfe0d8400309b56b0cd015233ec59732c9b57637086bc",
+	"100145004500000000010203040506071b0eae8a508f4ed14a1660e5b50f534b03ca1ab62dd1f63c42ac0425ee7428730fbe51c3bc9aa3663701f7748ef0579fb2d1f94a75952dae23e94b14f19436b3aec0fca0481e11b0e05b2c87e923ee3aac2fb5187441",
+	"10004600460000000001020304050607fcdccb0c31d19f1f0efe40a0a329705aa21109020b9a7a016e9780af6ebadd8c70eef3721dced1992209c6ab93d79340cd7714694d4f46251892549a0111847e550c5ab9798e4b99be299ed180abe53a0e5d741e5c87ee",
+	"10014700470000000001020304050607c8e48ec223aa0248237af00b986e6455b8ae81a745ca2fa2aa52965c891d5ed4c4bbc836492278d376ce33ef9fc51948d200db00d705b7c8f884fb40c507b0b8a6f63a90b2decd7298e6b7fc357682a2a6b295eb4c10599d",
+	"10004800480000000001020304050607a2d50ab53812924a8305942274bd31ff7bbff90e56b72429748a781af81ac0a79699a774d01939faabc60d160500e224a8abfec6301b4e4fd199db36af1e06f04139bbb0eedc15e899509262b818866be58a20f714a484bc98",
+	"10014900490000000001020304050607fd61c8111d1bc9fde50eecabdf96d6f58c8a574e12a251661a4d25336facd5b49565f792dc04c38292a4c27394a4b6915837c97074807c710fef19bd24bfbaa38c6cbe6fcc818431160302d51552163f83d86a5636d4eb9405ac",
+	"10004a004a0000000001020304050607046bd3791775ed94d597447f21f2d4aecc3021cbe4bc49d5fd975accda0fcc2bffc75f38e152cb1a9d02a395a9e0fa2d3aa9e80073241d6d2b0eae4bc3ab9f813b15791b39bdcbd248b9d9adda0cb9f2c671fd4aabe5714cdb5949",
+	"10014b004b00000000010203040506077f49dc79d3a61abde97ac39aad6b78352d1d2beaf4296cfc2cc117f6d2f102d27129b311f64f998b7582b4a1d65f6a72b7bd065bc8e774701e4a8f70ba3d0aacc145a34da8402c165c5e2ffb05dcc91c991e35649476f8db958cdb37",
+	"10004c004c000000000102030405060740c0dc0b6a06c85bd25f5ac79a8467882e84798bd38a323c8dac38a515fd4a6929c09840932523061a212ae409f2b81d0a6525e796866c0c04c6043eb38876f718783ae5e93dcbce2cc7db025bc4dac6ed7cdf19d7107fa16e68f07a36",
+	"10014d004d0000000001020304050607a225f02ad8f47de77db0ff74a56e580ed25f498f20e85c66aca250f57d916f8b89d240cf782f5ed32a927522e522a752e163060ca98070130e5995f876e7a22c7b5cf2fceea95ed8c9e1880f819efa4c5f20cee32bcb15e6ed6ed3f5e297",
+	"10004e004e0000000001020304050607844be16a2a503fd5869d22bb3b9a638e863f1f07e378cc7db7128d6303366b13925a0be9c4e9cd3c9bfefe1beaf30bf38d386400faf1b55994d6d32ebe74e953abaa70e94e78a4d4cc45ed8fa78943b9ca38cec9a37bef13bcfd3ddfd5ff55",
+	"10014f004f00000000010203040506074ce21c1fd9034d5c3d9065167db268a2ce9f27806652640871ddc86399c1d9b26d5e7164bf76cde5a112dcb22e558dc239168f0d53438b789a156efa747045c145fe919571d534f939b4da73b390cb8b395ea93a19674be485dadb439950fac0",
+	"10005000500000000001020304050607af72e2d487ff3ac53d958b17981d0c72aa461cac6e7e9782a479de3ea1e426133a205d22ed468a917f1639720c3717a9baee3dddc429b4498799742767ad7edde980686ccf2bf680c57186230c4383adbf2ad2d39e6cba9ec8d52f585f0e0f16ac",
+	"10015100510000000001020304050607c5ea14fa69cc6fb58a3606593a9781032b7f82ead082ed577f6aa9e0493b266550d94616de8644a3c930a8542296e2c7e23f1540646217c5084222db14b803f9c7b12b05a6130068406b604312ab2ef2b9768ad0a9f9972f8a072bd54791835c6081",
+	"1000520052000000000102030405060743f6277b91775758ba36d1fc442b9cb79c8a8e42bad5477bc4484b4f78fa3c43050b4cea64f557f45453cc93ef145b82eb0ba514c0312bb2719c6ac23043dd90d81d1f52618342ad865964cf7f0d6921125999daadd5417ca91c88129e1c63d36f3553",
+	"1001530053000000000102030405060738fdb431576dcd1f9fc26771e6a96ca2e7a0979e7189c297720250b9050b4272046e5e1c680b846436ffccf9da4d7ac8b23336ae0dda7ef86e32d442f3b3e589edfb7a3ef242366d4112baf449f8dab65dd529a8e6513a23c8dd21890ff991bab9b98918",
+	"10005400540000000001020304050607bab0dd44dadea7213db15331dc7e44880cc1038d26182cf86181a53193e5693d9aaea74e43b4d28bc0431295b40d1d8cfa22ca2e1d6c5e1a42558a1ff1faef7f7c56b4393410807262faac34fa730040884b70c3243b1779ba9d2544af818c21bcca8b1779",
+	"10015500550000000001020304050607dead4d2aa37a868731e4fd6e2a8140a09ea023de5aeac0fcefbf5fa654c7cbbbda54ba79e764af5775f4290569faa27149afda69673ab1cd0301e842a6f74eb67f5ef2622d3b3cb4e0a7504a4f38da0bc05e21bda914605055fb795556662b7ff6549f09c8ce",
+	"100056005600000000010203040506079e9eee4cbb8d37cb4655a4692ce73af45e6d1febec6dd49f1e53c29a670ddc34eafb575b9e74b7c02772d3dbf454af4ad99d0e4ca1421906c5e3e4f8742152055bb279680e4e98d3beebddbb6a76ab9d81cb9c305a29317c7bd0321fbec3b03be6ce1b50d12056",
+	"100157005700000000010203040506071a9a78391cd505327b4938a0ba3864e98979e236f9e6776a31898a5c44bbc03bed8fe5e22867197098110f4d04f4911f19d8c3a23295f5c8bbc581c978f7baccc3e0e312218c66a44c3918ecc668a180224d17090d76b6a8731537660344b6ab7069b239c208f592",
+	"10005800580000000001020304050607ae8dba612000fcfc0454c8b97788c7214301ac3fde3c0b2ed1d3deea0ad783dce4d6d1ac0414bb36d045c9bb1e17ccb919022e296d29a67cf50d895a2e4e2edeb8e01fd3f5309cf3e2bb0d1da2a91d14caf76925e6c478fae8786a6a4189f23cfece3676c3a89bee72",
+	"10015900590000000001020304050607f8e0365a6740f3ced1d9beec8907f21b9a1ff61f54aad27484d8ad73816f71727745ee310b35183e60cdcb7b1492baa30528d32036a822080ff9f3bdbfa8040ac694e52d0c507b848f23290adab5876bcebda99c8f5930f88a844f457262a7962b654d4c76c537e23f15",
+	"10005a005a000000000102030405060726af867939a9f2c5dc04bef2c2d4dc90af6b559009c2c8881dc79bdc3d4aefb7eb2eaf114597f4cb485697484e6cdc789139153a7b88076883d02cbf9f274100748c1d39edc22c424df68be14f068535cbcb088d801e393b5235c80ca5c00249567aff028924d258491e1b",
+	"10015b005b0000000001020304050607ad12233b5e3eff463a64ce475f9a025e759f47572810d07990d3bbdb03177c226cfcc7fc3e9407502f5ea91e2eccf720be9d0a5a7ca2cd14ef0dc908748f18c90ba9bb6d896fe400294ec0c3f7c6b0348b991750e73355083154cb4e7f2162eb27a457e718cb19e6e44c3888",
+	"10005c005c00000000010203040506079f5e687ba8e7c1b8627c67dd69547e548649ea34b2c7d89a849d5f4b26527a98298ae5f635e407023d0f50484671977807a98f53f36c6474eb2da9f0936032650298d20dd6c790ae9211190cc8f2f14112104777354f6808b5d90b0a2666bf1bf45f6bd245a41289d1ff6cb348",
+	"10015d005d0000000001020304050607d1e5b2dfaa18dfe36eec46cf8eba2841cf12e992ca041e14c234bae3b897c345dca1a82c75b78c818e12587e10f06def663b8087af73108d7fc15e17b078698e2f380a6a4c3338911b03d1a9adc615169c7320959d3db5de5d220af998b2f4dcb31a2d3322af87420664e3bdc4c6",
+	"10005e005e0000000001020304050607c8936191a4fe32e1ee3650fe815038b336ac3c9a33db54ff53204a93e5298007859bccd53d29df48145d872899af1529653c097a12508f899c7cf62f738f91b819f17630289333b4081cb2b22897c77909b46f12cf4ddefee73b05317b93491374eb0ee094857a980582a8b17fc2e1",
+	"10015f005f000000000102030405060732381d4d7b3c132bb42681bced1edfa4e0c4886c9bd4465d195d89c449cd3506e0ea06c7c481f56f31fe721cab2c9252ca027faad70e270586e1e3a73d1192d9b0d26101bbbdd58f5b11eccd55661b0ebbfcd68a35cbe93745f02852027354422b2370160d56ed6863cc94fb2ee09c1b",
+	"10006000600000000001020304050607cab3fee805d8a7a2432d878d395b4e6cc6c4a320ecbcae1864cf7f1d30e548f3b9bd95f66b24de9fad9b6a7b57a1c7a5cce9bb54e8a64165bdf7b6c2c5122dc1219ad1f2535826cee48470beb46ccb6c80b77b26c6eb189e2870cd1c3f2b9e3deebfec533933489829a9829cd64c90d138",
+	"1001610061000000000102030405060769a2d5bae6e07859aa7bcc723ee58476299a4903027a0e0f49617be0a56efbb816cf9397aa21d5bb12845360b040ef9873c463a6e7f1ad8558dd0114c8b88dc5110a30999e3a0d462c5d7c596aad0edac3bccc2c931384bda128ad9a584b5580c3a938c2cd13a8f3460afba6c4a1d7fd95f7",
+	"10006200620000000001020304050607dc414d68423451e877b9bacb2d642292df1426d5d1e095ed8b9e17e57292f3c1dfa284e4da7548b4c14ccba7d27fc3be99cd1c408c73be1181430b7a4891086f3d8f154ddd58da0171c7f761d5bbf15590e0908cd1433328f4e1d7e25ca62a93178fbf6b5013478205ece4a43440ea71c86f7c",
+	"10016300630000000001020304050607af133f4958a48682e749ae41544e18a219d56109e70bec5695e9b9adfc265a4dfb30f646f0277d62e3a44030620dc2c1ab5251eb20abcc447cecbdedba9c8bd8ab9a9f09fcfcec94f98357d54e00d38a0d0a2d2d8bfd885644864eb890f1f24bf4311bf81e770bf93c21fe5397ab07efee67df52",
+	"10006400640000000001020304050607984a86b3e32eb57c25ebe0aacea52f950b6a7c0212939efa562eb624c65567053f39039b985264f8f2613160ea631d58c9f065ce831a9ee1ed006cee9b4b2781fbd1ceeb1e0665c520ad16e1eb16aab727fb9b806e68287ea3e7b55f5c391cb57772b74e57f1cd998ad2450e26d088fc0ba7cee533",
+	"100165006500000000010203040506073ce5dc2b8951590b313fc5f698e9ba1693193f68333626c007aa778a04d022404d8f75ab460ef5bfe84ff7cd381bacb21e88d6520f3526e71322b3ab884a782dc0c849a370f64472171c9192008919110adfc5cc8a163f07c9eb12d2a95e931a1a53d8767714453f7e8d5ef13f1cd53b8db954e38415",
+	"100066006600000000010203040506071fe10fe21b880ce2b5d8b1d82235a5bc335f482da01a51d34c3eee59de352c4f738adb3828e7333fe6cf3266acd87eddfe4441a5160b9cf944fa72c948ae7ebba0f46d23dd4ab5aad22d31e7d333303f2e132a0cac10c8e54dfca08d6a05eec552fc3716696fbc176f1563317c88f0b1e91f76fde62594",
+	"10016700670000000001020304050607188f9b4daff7294b33f1bc98eaeafba36e5506ab3fdc83dea510aff6fbcda8bad23f51b9830aef58e07438250c37be29de008f685eebf11a6f590b98e9ae5b9460357faa774e4ed0c82d853c41f7c817cf87a0613fa8dc8e1c10ff31882de670d34a6eeaf277c4c8f0a6764d6d9b727e780ac578ff76b57c",
+	"10006800680000000001020304050607153e5fa81652e98a340cc9684e4cab7f245bafda4f35d7aa43a3587562da706e32034ae56805c312ff003678048c108d855cbfa275709174a19cfee9c201d840aa8c0055065617f19f4a7d953f3297b574622f07114da8edf7548e5c91e9bd8ca8a2da6bc41bf2355029dc8136b11dfe9d4660a70b0787347c",
+	"10016900690000000001020304050607475ef73e153fb8e2daae932f5b477b511eaafedfa5e3724453675d0586806cef2a13e5fd94fddac0bccb5c2296f3210b9f08dc75579be75c3d60bc598d0c1d40cbb25a1465f01474765fab1385d5bced634922bf4a8962e3342c31c6c073bf78ff38bef6f3de36b7259ecde6c2cc77a9ce27df4c74191ad5aefe",
+	"10006a006a00000000010203040506075630f0a13a9f83408a4c41edfb6666c41e978c0f18f8689f9cadb24c97bcd3eaee0bedf16e30acbea25a8cb6100931a1a2b42c8f7f753a92b1c66cc2fa4cdee1e6ea234c1bd691177ec0c1639f7c212c2853a7435d2452cc6469ad6f723779df69b303bf2210b3f0273fa1be48abb448f5245c9c78e608583316a4",
+	"10016b006b00000000010203040506071809a3656387ea038a83fb91c91ae7f3a8541e2f5d24a514a2754d2f9db98cae94c2e69451e73184dd4e5d2c97e75989b17dc46168bb477a2f5ebac33e304beef00344e1f45dc8fbc99ec502c20ac6550705fb1f22dba37c3ff2e92b08caf38d532d72617eb58210fb8166512da1eea1cab52ffd66343d3da9d30af2",
+	"10006c006c00000000010203040506072622c86536f0e197ca90071539aee22910d7b659e8d448cd9f37bc4c7afee4535416dca021949e32b280bea59570aee19f163c9ca172c29dcfcb9e770707d2ec03d4afe77509ea5335fd68c7ebeac9fdd273bd644d6d9cbcf0744928b62a750d87920f096711f0ab0ad2c8f3bfae8fbe31b8b15111fb4d2ffa08d15eef",
+	"10016d006d0000000001020304050607c3fe24ffb85d8061646b24442d821cf25b913a792c3b39b439d8030f0b57b8f7fb9d2de43d6c407c5fd8ae1ce0daea11742a2c886592a637763cd439c42cc8da1c22709c151c25a46e2d683de37d43ab346ba21076772ef3758e234735d86d2046bbfeb1466fe8c105906d17185c1981aa2860633d91ae65192862daec42",
+	"10006e006e0000000001020304050607104bbeba018de46d8f378238efd1a6e073a3edfb6f936110bca83a90bf68d8b98beec8feb1d66c2212440b00419bbc1fabc67af766d41b919d06dfd3889674cd05e64fc500fdfec0bf4a966702aae8b4d7982fcb6b413634a6f8f9c9803012fd68df3830f5b3b114efbb888f2ad70553bc247de46449675b87bb56a524b053",
+	"10016f006f0000000001020304050607aaf1d674fb1fdc5e083712ac9c1a7890ced961aed1336f65637cd966196078c90efad7594088c03e53b7c5fafcdf112fabfb5c364c15830e8aeea4bddfdc680f636e6cdfc5f7b9648dc3f8236fdb60de30001201ef7cbe10d215188c32c0ba34a4faa66e8ad02a5426bd6688d5ae1287894874d6b41546601ff92a20f9701275",
+	"100070007000000000010203040506071a0134568277720a858e38632b1425d197aa46b9609563c7d530499ff17699c6dc86d8563f3f8646cecb335ba4d2c73e2dd5dcbc97cb13ae0d76e357adaa6a2556efb34d545480828660d95957120c1a6034f706ea24f4ac0cadff26e3305871ace8bad619075be36abdd8602a3b1270fcb3eab0a1995141ced2ab6e07fc7bdb7b",
+	"1001710071000000000102030405060730ef58883468cb94949dfc58511c4bd4fd11d9c92fa88dd0ac00b64442ad45fdfcdde700c71526b474e1041f47076f3cb36e06280a412d45f91457f60817f56bfab60ab91e9fab2bee7354e9e9b4e8364578a70e52fe5e25bafda8187ec9264c1063c730f0f0af53bbabbd9166e13d5cc4e5937fe61d0e5b198d94269325b311099b",
+	"10007200720000000001020304050607503a7418b55ec2e058400673963607e18ca0ec2fe3e6009a30405e6ef8e13c13e15114df28200a70545baa5ec3449fd1b11b3ea64a0c884c9f49a1b01258ba5d34fb02d0ff1a1dc5cea6bc37e92afead95bc1faddc48842b91ea67f5c6d0779595a42f82f9ff36d636f57dbb9823ceaf4500f02d726cd613716cf3eaa0f0f282426b95",
+	"100173007300000000010203040506079b430805950122c0f74608fb0dfa0d512a7283e8011115ef1319fec6aa9ec69ff4a273b712de37f9c5beef71eb0188f494e6025517e14130cb8c670bc2fccc2274cf1110fb85032d9ace72a29d3be3132810b911fe52493f9b12d5d514067da5b97cd079436c56724dc063e5aec919ac96c43cfd295f2065632d52f84ee896f9552412e0",
+	"100074007400000000010203040506075b60095b614d489f89ecd9130cf6a0e7f13d10f592b452ae34f2c81f2e7cd8b8fe29bda1e675d92ff2b4abaa9e5d832b3d6a71afe975731e5fdded71c839634223f74e4038cb471781541f320f4d80dca61c3c9af8a68f2c0722b4513110e95fcd640d08e2b9b2322f629d96a5c2e595b17e24ec0b4b43d10c832ba8f44a158eb941a81dfd",
+	"10017500750000000001020304050607685066ff3dd010900b9cfd11100dadc0e2dcdb42cef152a5bfba3908d2353e76bfe5d518fd1a906f6c5ea98697221bef3f085736fae793d0ac9e98e9ddaacce2d7ddd55a735169c839442e47bf0d0812574a84df27bb5d0d19d38c8f5e2274218deda501a83ae17e25fdec6f709224d5d6b1e12cd78d462362f3b952f5631e58ef2b6fd97246",
+	"100076007600000000010203040506074f0025bbdc1c9031b1a61a37f7c0047f88de65d0a8d5d5c54f6603e6b4836e30a8735f84d48ef12b01ec421c33a5b900cd7a1ac216aa6c3388b99b86ae1e50d23eeb5af9e2b5647f13cf5d72b0c474aa01c56268cb4b4d4b3a8966aac3cf046121aaedfc92a8d9b97f33b291c6f497b0ed8e5d11314fad5e21f9e9cc02a25ffc89608a4af46a10",
+	"1001770077000000000102030405060793ec32eb6969bc850636b0d49faba15d23e3abec8be6dba022b76062e70ac97d17cb036a790b36f2a469b1dd5fe7ba026ad383253f5d7c8dd817d714c9a6324e9071f58074c171017ffb9fc1da8aff1bd7ca9107fb6e76ed6821054e21b75663add9894387677f1c63c09ce65fe4cb6efbf175295ec230ae861d60cfa8edcd43cb0de5592f3ba122",
+	"10007800780000000001020304050607468493fb541b0cdac36e209265231f478d43d4bf9f709c4185ded507233c4cfb94440b3cda1a73b8c7d34589cc0a506973c5560e195db54bfdc6b2a489a932cce39a8bfc0811f48e66eebd37637bbb6ea54ee910dc3ee602d31534c79e73d9c299df9f2f2eb682f06f9a6537c23492b16955fc4d8c7ad1d0734b0720a2d64db8a4f4a91956d3096de9",
+	"10017900790000000001020304050607ed7dcc0014b199dcf4a7890de03a34ef593d9a476d834d29583d84a5c2cb7f609ae70eeb511188ac165256f50ec9a809df45302c87335bbcee7807e69546be62027b38a0703195c285d6b4cf1abc90ce6d5c96d65f4ab39d69ced10efcaf299bea58246954c74cba91a80be12f70c09132e1232050b0738de9f5cab0285c061bed412467711e2a8a919d",
+	"10007a007a000000000102030405060732b4124d8f1d0ea68e1dce18a6883f9b09cd6f9ca4f5d199254bb1b7fdb2fb60b36e60c86ceb3963d997e68048d240270e35616535d488d8885a07b6117114e951a9fc05f353a4498c3afdd15128897425cefaae1e41b3d3dded1119c2156375a1fea61e15484eb0d010472691565819a70ef7517049e09435b4cd102072f86b5c5fe53aa93e83816b0f7a",
+	"10017b007b0000000001020304050607c3df742c79b513b4191ccec4826f8383123a426d725d7c3b3e7564aafc6ffd80717051baee953cc421c35d3d1d77e2c58188fb9a2bedfaa4694cb15f63208d259a9db80ff48b10bbf426f64b35df62f0089c7cc8f57c7e57392a39052b3f4a368983c0a8fca5bb11c7781a73ca251e8a0496c777e78e8b9b728f6651fa43d2cc1ef09ddc4d7dba2b8c07241f",
+	"10007c007c0000000001020304050607704f94ec158605aa6aae90e43b4c50ade382fb37a8508a3669b33e3536a1ca5b52a7548f0e3f4542dbcba52f9d6a88862c21decdd9241735f35a1867d018ceef986243798f777efa64c92f4f701c53c870c4626fe7a2d91b6374acf627b7e774ee85b02b2d8112b161c941c5a51f77c2c018c07288b0b56484aa9909fa42f5d3e2431c02b3c6bed865dfd3af47",
+	"10017d007d00000000010203040506076ea52bb89e2b68a34c614366d90078066fc4611eae03cbc1d2141d4027d0698f5ce1dc059674d39899f543a8a8265b156152fccd607d585af5d287fb6a29e3603bfc9a9e9b47a6086c5c10cc827cb940239da0ba786ad4313dbeb3312d772b56a5abc56b9361a2ef18073ff3d7617ba9fc3a1d4089ba2d571ed57ae2c22a9f791bd53bc5416febe771da5af7bbbf",
+	"10007e007e0000000001020304050607717fbc4a6290bfe751bbd23791b04b240e50b937d780cd758b4cc649fe2fdbe542027ac3c8944d74097b3dea56f506dead205bc5cad3dffc5f7b352386da9d55e6a2184013dc7fad96015960953d7b5db8efbaac6896cca52f6b082fb69d594f77e911547c517d4a6f355f4c0ddd67a8ed455c8a30073c0a4d4bbfac53c7eaf993b7b7023263f490ed4b1b07ae117d",
+	"10017f007f00000000010203040506073a673a2740dd123ac1b1c5b36f95d056f74a16086dbdd6d6cf2b41c6d646eba3c8b3f36ce8f50ca35daa00434ec2ff4d41466a13f6b341e4a01f5790e89fa76ddf3940916de8c549a1c94e734192702d5c544ac68103a692b62bc7d9ed2ae96b6b51b8d35c8aaccea7c1dd0a8a1695a68a8baafd31c1e8728b889b77d35e6d0a557587086f73232296df0c2a1f4bdffb",
+}
+
+var invalidTestsV20 = []string{
+	"10000000800102030405060708090a0b29c5f2b6d44cf237128fb2917fd04d2d1f",                                   // invalid version number
+	"21010100800102030405060708090a0bcc5d902a536aa9b678ff97e206e34356aeb8",                                 // invalid version number
+	"20020200800102030405060708090a0b81b0214ab69f6f16c07d90879cde5032150a6d",                               // invalid cipher ID
+	"20100300800102030405060708090a0bb8a68d9cfc1d6f5f9bfcf71512b93e75597b8908",                             // invalid cipher ID
+	"20000300800102030405060708090a0bd3abb444e7fcfd6061ce6788bbb1f99530aa4afe4d",                           // invalid payload length
+	"20010600800102030405060708090a0be71cd2d1ed78f67d4a2c8bc825551bb2b52e9624812d",                         // invalid payload length
+	"20000601800102030405060708090a0b4af54e107f300064658168bb27b7ec0921faf132f5988d",                       // invalid payload length
+	"200107f0800102030405060708090a0b094c2ab39e81e03cb1ea41b823030b342c76ef3a37fb0509",                     // invalid payload length
+	"20000800000102030405060708090a0bf574c12cd092d57dcb54332b9ecfa8df436f55b381384c1cfa",                   // invalid final flag
+	"20010900810102030405060708090a0bd9d1309fca3aabc892a49b8e114055ef79bd016393e359a4850f",                 // invalid random value
+	"20000a00800102030405060808090a0b355ee11d8fd910b8889e3f1ab7abacd46dd49bfbab453336aa38ec",               // invalid random value
+	"20010b00800102030405060708090a0cedee0a2f08b003f8b737bc5e2af10bff023fa27fe83bfe1416ddf9d2",             // invalid random value
+	"20000c00800102030405060708090a0b8dc60a1870ecd741bf1b755d925c541b50548ebe8644553fe02de004e6",           // invalid ciphertext
+	"20010d00800102030405060708090a0bd9344aeb53cd4b2ae64c0ea529b6628f56f1bc577d5347b4ce75818acab2",         // invalid ciphertext
+	"20000e00800102030405060708090a0b464caf6925d2117bab972033ef4bc61dce0000192851a81c0279bd81fff648",       // invalid ciphertext
+	"20010f00800102030405060708090a0bce5b9aff705c27e49821444e8559e7a54f9da81cdaee0dd8eb9de8579d21d16b",     // invalid authentication tag
+	"20001000800102030405060708090a0be4d58cb0de97058b6cd13f9ee08221e2b5333cb2315f472a01e1132bebdca95752",   // invalid authentication tag
+	"20011100800102030405060708090a0b6c9e29df4a73938ae19e38dc27208e1a1a3d4fcf742ee527dc8d3700f350ed32f8e1", // invalid authentication tag
+}
+
+var goldenTestsV20 = []string{
+	"20000000800102030405060708090a0b29c5f2b6d44cf237128fb2917fd04d2d1f",
+	"20010100800102030405060708090a0bcc5d902a536aa9b678ff97e206e34356aeb8",
+	"20000200800102030405060708090a0b81b0214ab69f6f16c07d90879cde5032150a6d",
+	"20010300800102030405060708090a0bb8a68d9cfc1d6f5f9bfcf71512b93e75597b8908",
+	"20000400800102030405060708090a0bd3abb444e7fcfd6061ce6788bbb1f99530aa4afe4d",
+	"20010500800102030405060708090a0be71cd2d1ed78f67d4a2c8bc825551bb2b52e9624812d",
+	"20000600800102030405060708090a0b4af54e107f300064658168bb27b7ec0921faf132f5988d",
+	"20010700800102030405060708090a0b094c2ab39e81e03cb1ea41b823030b342c76ef3a37fb0509",
+	"20000800800102030405060708090a0bf574c12cd092d57dcb54332b9ecfa8df436f55b381384c1cfa",
+	"20010900800102030405060708090a0bd9d1309fca3aabc892a49b8e114055ef79bd016393e359a4850f",
+	"20000a00800102030405060708090a0b355ee11d8fd910b8889e3f1ab7abacd46dd49bfbab453336aa38ec",
+	"20010b00800102030405060708090a0bedee0a2f08b003f8b737bc5e2af10bff023fa27fe83bfe1416ddf9d2",
+	"20000c00800102030405060708090a0b8dc70a1870ecd741bf1b755d925c541b50548ebe8644553fe02de004e6",
+	"20010d00800102030405060708090a0bd9344aeb53cd6b2ae64c0ea529b6628f56f1bc577d5347b4ce75818acab2",
+	"20000e00800102030405060708090a0b464caf6825d2117bab972033ef4bc61dce0000192851a81c0279bd81fff648",
+	"20010f00800102030405060708090a0bce5b9aff705c27e49821444e8559e7a54f9da81cda4e0dd8eb9de8579d21d16b",
+	"20001000800102030405060708090a0be4d58cb0de97058b6cd13f9ee08221e2b5333cb2315f472a01e1132bebdfa95752",
+	"20011100800102030405060708090a0b6c9e29df4a73938ae19e38dc27208e1a1a3d4fcf742ee527dc8d3700f350ed32f8e0",
+	"20001200800102030405060708090a0bec4512c4c2d7d818b497ac3949ed0dc6c1876e17e173e8d38cad406847ebe70e1f99a0",
+	"20011300800102030405060708090a0b6907192f61df028946973d66181417c39f554f030fa3653989ed49aae5d2a08a22d78a2a",
+	"20001400800102030405060708090a0b9e3065544fc5ba97d0dd553a554106950f07d2c00ed692a8de25b53b6d3430acf15f7a00ee",
+	"20011500800102030405060708090a0b3f879f22eb88347f37a41c89fe7b44bbd424d8267aa2d47f2b020631e304ac768d3505aa6fbe",
+	"20001600800102030405060708090a0b5225075fad87e043e29d600d0ab13a151c59e1f532ad1e3072b25e739c4a3f0c6025c9abbc7734",
+	"20011700800102030405060708090a0b157a40ac2fbb1d119ec89c056f072695e00f45fa199b407ec9d5c7c8de7b018b17f635e54afac0eb",
+	"20001800800102030405060708090a0ba4ce67bf49f977958f6377a7640a6c08bc520d047a17d5138c813d2ecc01a60346cfe40cf44360fe47",
+	"20011900800102030405060708090a0bd27611d7d8302357f83909eb524734a981e2d01a146324c1af6528e9a8299bf01d330af089f80fd41658",
+	"20001a00800102030405060708090a0b37de43f3cea8c8c4c428448b29efa4708034adb131677bcc717ec516e00cc95aa575eb08bd75f8904b0490",
+	"20011b00800102030405060708090a0b177e2d50789a0960a3e241ca191c90374ea5225a02c5df564875909b5c127db73309de524f9fbd3cad4d9b3f",
+	"20001c00800102030405060708090a0be12c997b1bb0770dec3974ddbaf7d6c7b89694cab27ae3075695a48cdb63b602c4de2a7fb524a8f540649e75a3",
+	"20011d00800102030405060708090a0b95b1dbea07e9017ec999368080442fd72f58cc6f4bd8dafd9edc9fa1107ba4479e0f51c498d491c3b5adb8d7ec72",
+	"20001e00800102030405060708090a0b635dea155cb95294a34127712bd4b6968e277627e18e7c3548729cb45db67585cbe5b47c5f2383fc04f7e1e684a431",
+	"20011f00800102030405060708090a0b32441abf7e67106ae55cf8ee656a31922bb619005d6b5bf34c0f4ae434882174cd3329dcca597075622ce34abe203ef3",
+	"20002000800102030405060708090a0bd60a2d1247729c7126fe71a4642159daf2d0164f3acf47596be6aab94f15168653b579a8e1702aa0a4e4d661e2e8c462ad",
+	"20012100800102030405060708090a0bdd78815cf43604837617f97434a29ecbfda281464f2b0a95fd09d2cff0a4f1f6f32b09fe2f2b1b1be3610cc55677a3ec797c",
+	"20002200800102030405060708090a0b8ff6461b4e33bdf1f39145c099d3d7792ac2478f69b28bff743502a05acd83de2f43f9260acfcd33f7fb67b2de2d5f28365f3e",
+	"20012300800102030405060708090a0bfaa69dac4bcf2980f62c1efaf497c30283f22e7102ef3401e6c0154317fd111c3ae147115e00c117d0d56271505b0606eff75494",
+	"20002400800102030405060708090a0b647a93173d8dee0fe915580ec4e083b393f5179da579fb1fe709a00956ca866ca4245f0bb8b97b921b5bddb157b8508814c8ce41a7",
+	"20012500800102030405060708090a0bb57233d28be0e019695bab4463c3091cef840912c4de25eb57cbd63424980a643de2cdb7ca390ba5b05aea7497139fdf7233a5947f58",
+	"20002600800102030405060708090a0b1f1454313b25e7f72e9c63dbb968e05f84c05480e8917763b211adb0c1d90380a9705d6609fb783f956e2b90bc51705d834665620ce97f",
+	"20012700800102030405060708090a0bf4216ecd2bb797da0c050d4a0733540bc09bd7abb47d1d94f7f30b0f2240b8f961a9bb6462560642360c68337ff49e251c1f4722a3f6d6fa",
+	"20002800800102030405060708090a0beb318ee154dd4a912e07d9a61a0ae68f37a59d7182daf4a6dae10fcc7968eb7f7798f6877317b65e9c6d9b3ea262e627027c04117a0c69c1ff",
+	"20012900800102030405060708090a0b7cb3246ef3a35ce656e724f92bf39a509cfd3cdbea12494f11b2ca9ff05dd81be7e4e5ea94d2126d405d476739372635ad43bb4bcdef21011ece",
+	"20002a00800102030405060708090a0b1b0ca528fb4f257b67a6fafd6b4c2fb698798e731414f37767c40c21dd1f79aed430ad2af7b0215802787eee64820615c5661c4cbb4461da1b33d3",
+	"20012b00800102030405060708090a0bdfe7178cf6ba66f102c4ddcd99016a1dd59c0fe27af426a3ea8783235132d9f3012001dc3137f6438134a7775405d7956ac5964f6a2f5b23ebdb3c7b",
+	"20002c00800102030405060708090a0b0a291a848937428d2f08c15c8b76cc6102ef93627b2e4513a1fe204fc2ee7f68b177f9d752faf9c120a0f50b04fea7792e7aa6684c19867d3f895f27bc",
+	"20012d00800102030405060708090a0b1401bdaea7adf79b76b9e927b03bfd785c7e124fb44c2b0cfbe60bb502979a62a3ee40e4b8eacd2209f603be36f6ec509baaede861f2a98ca494adc3775d",
+	"20002e00800102030405060708090a0bb952fca4ff2275ab86230bc7815f8fae946f6698c6563fe59eeff0bb2e1eb4bd3d36eb568be5adff0f9e79c57fc57017e5b60f4d5edc66ef8d8f64c5820970",
+	"20012f00800102030405060708090a0baf224b012dc39a60efbc1770f8bb0fbaef19900190110d6bf99404e3597aa50f7e455b5852da0049a9077e3a77fb0e73713bc51fd0016cfd9578a8d29deddef5",
+	"20003000800102030405060708090a0b2ae1701e70f8990c5dd3b1527824b8696e9bacbf6d59895c2be90f930f3bb288f248ff197b6aa0714489d956f113c8176d8d90dd037f36e1ceceb8ce024da819e1",
+	"20013100800102030405060708090a0b083e181aea8e1a9e15a2c28ceee69a40b8d18778d61c6626e6f9007dc14078ad0f8109a8864767efe6a1e3c776b87c98c6dba7d0116bb95a7cd6403a3ae0496dfffb",
+	"20003200800102030405060708090a0bd5eb2525d098d0bc637c35982c4b59c0c4f96d644f0576ca1d034e8aa1381c7b3a315daed357a0621be637590d7ef5d6acb330e096e77ee515ee9cea35f87040e96a8a",
+	"20013300800102030405060708090a0b1835e9d3dbd7b355c9ef7965cecf8bca3af7a21f4c5c8a29b78a6140086b60dc268466aed3144e21d574a49e3c36097bba7a1079ee779b98e9f185174e41abd5025cbfab",
+	"20003400800102030405060708090a0b119e4f76e7308d12bb6b4d0cde44859892f7060d6c349f5cdb8423d1ad920df48da050f40a09159b8494c60f8d511c576859042451898a84612ae5fbe7bd57edf0b2eadd30",
+	"20013500800102030405060708090a0baed76f3776dbd4a21a736839268aecc56979cf97b7fef4acd2246d1f451c98cd4f1165b19d8cb88c26613ea3757f4744f2bc9afac269d8d5dcf6f8948193e2c0603bd81968b7",
+	"20003600800102030405060708090a0b5a1107fdcca0f05c7cdbe6f7e9156a83c2051a17469b1d9e4f78474170cd5116e9480ad88a4606880c69efcf1b48c5593f1edab2410fa00cec97bd9662324ef4522dd5ec34ddfa",
+	"20013700800102030405060708090a0b9b81140b6594bbdcdc77d48016d957047aad9b62ca9cfbb2d1a81fdec716bc9fd032ef2f184cbf3ab90aa2717539112fc3e200d1e92b1443b0f528860fff99efb96e38e522bc577c",
+	"20003800800102030405060708090a0b64c665c0e0f2770fb4e4cbeb6e4955eba66e7a514a509ef900302e016898df7481a656c502c88c9c2a1d503e1f296629c7d1fbe8b19a9ee0851fafb033f13eb6e4639875a758bb3b82",
+	"20013900800102030405060708090a0b6d62f221990db16486f9457a9066d0bf75f27832ae96d43ae8cc8a87e360879db3b3a3b9c604452b934372c022f88b8e5af60a745db7c735c72d59b9175a276ed5d9e47623a13a70ca71",
+	"20003a00800102030405060708090a0bd46e05ea31fb7c37f3092d54a417603e47469de7371c8089f5050966cfea0ff703283491e9e2621619e725b0bdd9d785e418d398aa3fbe4016b2cc0611f24abec798bc2cc32cbedff329d1",
+	"20013b00800102030405060708090a0b09968f9a9fdf13b9b3e7b829c423822d67e7475c5ad300547c9b4549ed7305ecf9d02fa5e642adece9e4340184188da881d10400dd5b7c7e721bae3d887b01ab21a1529d117c367b977fb07b",
+	"20003c00800102030405060708090a0b20d491b341821e329752a6871bb1d14c5359100ad6ee030522b11f5caf39bcdc00ce2feae1ff28cd0019e7cf3a2734d04ce95cf5022401123e4a3e33c9490d344e4bb6533c95d5761db413ff10",
+	"20013d00800102030405060708090a0b2956ffaa63b58b0db5a3b6b515e87b0b68dd4ec4e7767ba786209944f4888684a7940826dac9fb30c5e6d6af9f6ca7343992b2bd864bd01ad6a850b9b3e1e3b5ac90018e43e43f656edfde6c8c95",
+	"20003e00800102030405060708090a0b3f7659d114001be8669c0af1d8a712bb07a153fed3b897d3d269f368a36b3f509faa20ced052149f15a33ddd021606111810b8f81644cb1f2b8ec5df445d6ba9b2579962f45929fa5bcbb107581c43",
+	"20013f00800102030405060708090a0b12365ae199eeaec110960d5ec3a2975d3461c4ca875cb3c536daf7ed8eaaa433ecf67b1a2dc9b0b5715160055752b24b9848109c1e8b058b885181723baa727552c1505cc3bd2e69c0c39ddabb4d6ce0",
+	"20004000800102030405060708090a0bba5df45ae63e49607e2250361a5b257b450c7afcf092680d3e16f99b34956fdbf74f3514bf7a0beabea8eb9b658e042e4eae1838415f25b39a59ac3c998ed3ea4faada96b0b91f49e0110dc81421df0239",
+	"20014100800102030405060708090a0bc6f6ac667d4e104086c01562bdbc7773a03cac1cad31be2f89c18ff163e673c8df4d8034d72f06a35320be870d9d9780b4e45cd661445de87bf3257cd417c49069540454de9935ff9053c6d95915b8331eb6",
+	"20004200800102030405060708090a0bea18ab526306c21781b34e9541f2481283f90c12e83fc22eba998f8026a02627e53ce04fdc584db858105d61b4c14989f701e03a7fac352fbcad68b9064bbdf7713be0a796997fa9b294f30074abbb9ad6fac2",
+	"20014300800102030405060708090a0bdc4483767c4e0d5800628cb6b8951894ba12e8afe43d94d271b46ff10c00f3949a9aa6e76b2af7b220cbe560e95aa3903a8049979620ddd4047d47c75400bcb7618ec86fc53dad6443c79a18a521b06c4a65edd5",
+	"20004400800102030405060708090a0b4808a776b7bbe500be2a6f696886435c0dd7d11a2fc64c257d0755caf9006ba6a64fc3b57f6ae5c159a76ca4fd45a3c3778964d375fbcb6a48cf58fd42f53011ee260c6fbef578d04af59703a522472f5fcd42da0a",
+	"20014500800102030405060708090a0b32be59cb04a87310e9987bbd232af69f701cf25b3c293c14e7025e3f37fe8f40b107e6525fee12be387701b4a89e95ca8fb31222425df66b758d103ae5d666196c1876d69253abae1713802c678d43a42a3dde77e13d",
+	"20004600800102030405060708090a0b7937a6b2060fca87b697019bd160b4d00673a9bafa0654c959aaceafd56e77ca5f5abc8d95fa5a14658cc993295ca4050e2fd224297ce723d0b5e53a6db52debf8912fce933d3111515af2202194c3cc03f570a70be861",
+	"20014700800102030405060708090a0b177d9895e4652ebac3b93e99f4f0496ff7942852944852b58f97ee7698372a6f8d2204e893ea7936c69f0c8fbc8a5b9f616db3356a013ba5d538b56f9d13f4bed52435a901bf591adc1dc67e7878fef567ce82b7aea5c22d",
+	"20004800800102030405060708090a0bb7d639ac083f1ff018861c827b7955becfb30025b59ef278a48a554540969218a131972d29b6820d5ea0a1d2facbf5ef9cb82bff72baa280e299edea5747b71472d158353d8f6dd5d84fbfd02b6b1cdcfc3eacb6a6c78267dc",
+	"20014900800102030405060708090a0bdc84e7c46ef1411877a63c6919c1a36502ebc09def4c1d50ed9685f478e8733a0307877f0b8b7ab5006d49e7fdada307315dc5b908c88056ac055f790277afd23a4681f0fafc3a19d6a1b21b70e412a16f6696bd4ec63bc75c65",
+	"20004a00800102030405060708090a0bd7d104c4c1c190876cb05f9aba37dbdcd9d384d24f3654dee4cc63022e154bbe563916390569982a1ccb49f87eeb347c5dc0e5d44dfd34bbc315096e5ec14ee793bd7c83adbc37ec4cc016e78597acf77b9c56c2c0008814ffecee",
+	"20014b00800102030405060708090a0b29e9839bfd80a31a84faf923647315d6596269ac2a601bd52442c13192e0a1375a6efbb78857618094b57cc87c1256922d530166ec7e1e860e6acb5d9f3e003c5c9804d34cdadb775e0a48933b1cfdc7b1d6a1d07ff79b158edddd85",
+	"20004c00800102030405060708090a0bbe4df4273c523eb9e744d8e24e065ea2dabf654a7afc7e5ddeeb75498fe6d7d5798fdd5262d5c36d7095bcc4ba1591ebf9d0901b07dc55d26cf43b7cf5c69b76217c13deabf240a5d3ef379438983fc04810c4ec1d3901bd662dcc69e9",
+	"20014d00800102030405060708090a0b7fdbf66b4edcdac376928ad19d3bbd0e2e6af20eb00e896c1cfc20ba32429642af40a06667bb61b696d6171a7d4ac02731d820b6c5d755a96e7a5a865e3cd98924bcbf0af2c482633bea45535bf01fd24ac6331d5101f3c0b924a02d7382",
+	"20004e00800102030405060708090a0b575c7fb1e5ee93c700dd1b69ca7afd095b154c67f3100f3e3a2a24ff3904b271e987a2bfbd2292813f76490ef77a184a047adccb41d24459c93e1c6ccdc2eae44353ccf3cb1ae37a259d2668a6e0ef601d0f1ab92d6d697a400c4bacf35cff",
+	"20014f00800102030405060708090a0b96552fd3a44149c6f029cc98f9a2330ccd142e9aa3047e54e7886f4a32b14f72b543854c6d26ea6ea7c03e3005c7fbf3d11cedda3bc601110bd6a8b42c5b5a4e440950221256e325606adaf16ebf2deef115010b5eedfd6f25e94ee9f28a9474",
+	"20005000800102030405060708090a0b46cf3238c05accd583190a9dddcbc21a6afdd672aba76f15e5b6bb6dd7a6ffa9aa9dd5e1df00c0fda498b63f92f1c7c60d153edea9166baa88d72f10dcff83619eaf323e0635911a1c62248b9b33b0407fae6e2f94a9412826247f207fb5f9ea01",
+	"20015100800102030405060708090a0bb66d8c1ec7b9398277ad7b40d112cca52ec561704f2a37f24c268738e15641d2b27e579aca52f41b29572d4d59fb346332421e866a19de2d9076697208f63c11ef39d8ba3bbeb74a9cb29f16a7b2a6ca7ce54df8e3d42e39e9d3f91f32fc86de345d",
+	"20005200800102030405060708090a0b044aba24943c45fe57ada8e871f4ec716a24363ae076937c357fc7fb46ea47071b648e8ea9b83e0a7c52ac6d164b1518694ff16ece5c73b2deb01b0a547a129b91f5a277beb86ac01007257a7b34f643bd7c664ea4d9583d39daf8d33a0206d598af2c",
+	"20015300800102030405060708090a0b507174c473cbc8d6475f39e572e040a7c8639b27a0f4549ee348a2346c169e1b2efa5c49b2cb06c4d9a2204183aeee3381caf8ee9d001a421ce8e1004749f769ed92b2f230ae3d6e4a6227aed3537dbd0da5fe1a43711aa5697acdad403bc52f4afda547",
+	"20005400800102030405060708090a0b323227cc78c644be4d4683b9d72d43d67be1f088f1f6482c5d32f1d5be5f18588c8f7820ab0b0416a2436c112b97d596dc1b6d24cf3811d0991d0ecf0d9c751d08143291351a1c94b100d85a639598981f753c46b7c7bdaa0086c49fa9a00610810778d4bd",
+	"20015500800102030405060708090a0b79dc0ec94b3b4e5e446c12de1867c9acb0f0ff11304dbee6e9e8fb5a824a84b5f37322d76decc3f97e6fde0a2741705515179477f1036cbee0f230afc55488ca3dabca436f393d231f7d42c2f05e7e7b4bac5ba85727789aea4e030249a11238ebf73709c694",
+	"20005600800102030405060708090a0b5eef37f4ee910b163fc303d315986d366ffb0a40257b6e0fa08cd04c5da2a3fa6e285969e486d30b2a44046521b21e84f6dceda3ec416474fc753543b0f25a8d29935e04c6eae04db8867f985e19eb6d6188f96ad5b53b983f3f8ab90053a302abd20bfc97feb2",
+	"20015700800102030405060708090a0b2a8fef72ef24407cbe41b387955939351918b351c5a80ef2301356ad41bd04621c9578d1929120623d99783891d997b996154baacccc01f7ed78e25c4434053eeb63ab0c1dec44ac8c14a64ef58e7ea7ece9abb8e29a257ec2e141211ddb28952a2aa96903e394bb",
+	"20005800800102030405060708090a0b71f6af5cb7c62b4c695c26d284375075208a031acf46d5490445f3bad6cf0736f4169afb6641f00955eb6566a913e9c640de7ca9e99215c14111337834c897820248adde4d9f50d1f8aa79a93a74a05eba9acd74dfdd7b7192074f538f6415aa25835d8acbe6d78d6f",
+	"20015900800102030405060708090a0b61d3528824a6cfc5a5748fb767150bd51213bb3a9e4148cb8749ae2e0a1268458f11a9f507dee7b9bb4a0ac98b2c4e4bc2bf6603f24799107a99046ee7f001bd37b862ca86d74087112d1df3e9ceae6ca655a99efc56df5b588d7a47a13681aca6a05ec2c5cc0b052af6",
+	"20005a00800102030405060708090a0bd534e96d8f7e663224abde39116f386a5a2064e51f3356d06d18ff0d951a81b45772c43e54ec0f91d2c15b15458ab969d92da36cdebf84060f88e454aed4d70369af9820a30d807585722663aeac58b30d5656b69ffcfec257342614a5296d4b809ff2e44abf0716dc6d68",
+	"20015b00800102030405060708090a0b0e6f67735054b56780b703a2f313c7d91888cbfe1304e7912532adec03465fbeb1ae5d8347e4f20ff465e67b7d5c950ba886cbc4976319f367a578cacacd459f61438ae0ba60bc7ba4ae88adbbd8cf0ae9cc7e828e34de86c896d987d57d8529d7a5a49031ab40de18da59f7",
+	"20005c00800102030405060708090a0bd5d9bc31e6f2f5df52c8e26c6f9719196126b4f19a4159c85ad66d9b1de8d2e776b799be1b6b01677a1dc808f8ebb7cfe715307eb0f0fd5bf2ee107288398ce4503514818c2af50568cf872054e5aa5a72fbe6402056ccaabcfa760bbbc0732d34188b7a6f3fbd62ac661afd22",
+	"20015d00800102030405060708090a0b4af9890863f5d89f1544879b4f64a977d75aedd6c8272072694bce1031727e33c571c53a951e4544bd69044e1752f21f1cd8025d563af365ecebb8a1f20e1c1cd301ec79f0ce5e443d220463ae8c84596415c5ef77757dbb8325723a1ba56d0d2b5123dff8d218b1090382a5390f",
+	"20005e00800102030405060708090a0b16ebc72c975752066bb73e90e9a5fdc01771cd52d7b9afc49165ca4a3a95ca2a4d5ea099f0952e06edb7c6acdcade8020f4b2ab5faac7d86383482d23ed6a8e1fafe3f98a0f6e2bf37328bece164faa26347adcf1013e2cbf1d667ff792b0a646668c5e92e39c6caca58aa2149eb69",
+	"20015f00800102030405060708090a0ba6ff585df693a123092c17f8906530ba2ca2f79effcd029b0dcdbbd889edf9280add8c6f37a7b647676f1da79b543e9dfcde5ad6b3886b6068fb406561153a51f7dbc399a3a2978ebb21e8853513703e12624292aaeccb89efd402989232c7a600b465e7752291b3d572d3ed9d19829b",
+	"20006000800102030405060708090a0b83d9b8a94e6c6e40730cf7ed11188609a730e17a3e71427b51ff1d5e2df564f07e0a63814cfd02be7e87ba3544a000bc25baf14f2d119137573007f4442fbc17c0569a87e842fa2744aa04fc0f82da3804b96ff06f056cbc2dccd142c5252437a6db89ecda936e7ae72145e7c5aaf6ce0b",
+	"20016100800102030405060708090a0bc2201f7ce73788d32c782ed6f544f77c9974ce17719fa4fc737c39b66f386d186ececba6f3dfe5aa67c7c87f3b39fb8b6f7843eaacf3a209c733d7488a47c3f90050a9c578a0ae9788abd3b70bdd588807052de2c09b8e8711504a0657afc7f0a39c74421f4336cfe0253cab611db6b732c3",
+	"20006200800102030405060708090a0bcb312e7951077f4284446bdd853987e1ef57fb6f2db6c260492421ea735071e3dd7d47f5d2de1dc30ce9c7086dec1e89399a0d42fc47a6caab0fe0c99b5213ce8e048465546f5b272b60404587a5f39a959989ade8384f1e0121459a1c33769a8bdeeed91e980772c353a7dfa901cc6f343823",
+	"20016300800102030405060708090a0b7294d5c930487cebf9912974fb34aad6c2237ed7993fcfa31cb73542c97035f337ea1f868db9193b67251c93f475381af02f27ae37dec01ac1bb8f91b3d7571bbd589d3423fdaeed27491fd7e36363cc76ee8d77c0395bafc47839218763328d1baa7b5ae6a16ab2a0f67ac4a7053cc8ecc87992",
+	"20006400800102030405060708090a0b99ea7dd3ffe4c8c337a12aa3c76f38bc37998990cc13152c45d16949896fd71e8d6e723516691fed84034cce0164200bb22140fd9a4f1bf5095020eee31a9dfff2a7203a7b77bd0751304b7c55b7850101bcaac1342afc80a5eb5a019ba67b65a74d0c73db13ea24cef08ab0f1521e83df41ddcb67",
+	"20016500800102030405060708090a0b29ed08c7d9aecd484817b0f681f9443a5b82682b9bfac5462878719288bd94e2fdcb965ecce0f86628849107d6afd3220c36fefb564a7b8391f5ab1c47eec19742b04f443c94e15b10c9164b59396ebe1ae192f1842e9daba3335e40e392d44296a576fc92ef58e22d26b1bde929d5e7eedc7666c093",
+	"20006600800102030405060708090a0b88de87b2d5acd448588c7a150b4d0768628a93626e91c9f67a68ece00c1e64614819d798db05fbc1378b1df5150adcfba10bce29a91336bc4e72ac1afd90b205729ff4a49df90f8e7d56607eb54687ee45bb9ba383899b91c6b0a729b247d7e607b7e7427a5f45df95518d2e473395db6d00da53ccce50",
+	"20016700800102030405060708090a0be90794a6ff9374b911f82389c6a2f54c0b989880d246ec607b4271657dd7cbf556306c266341bbb015fc20cc368a52324fe4b0fe68a291e6c5b30295f982c20a840756f3a6f53171fc1ef7cf6188a3f82daf4c8087273ae3e2e219150d210708ead3b8d462cad13ba1555872c8907f402b896a019d4903cd",
+	"20006800800102030405060708090a0b200ffa735a46ea404a91a7b9e93f8d18c308686d532f570faa7d267a1dbc086e2e19435a6327abef2073882c031304e652e3918cc5fdd96d2f7c76e4bfc3f07dd0a59d53fdb97f623046125163337f0021d3cb10df41203ff2cf7dfb1f8616ee39031033c1fec3da78f2df68c9e27c2e31623d196ca2b3880a",
+	"20016900800102030405060708090a0b428fe9f596dc6aa27b678664b2930b679b425d6f2961fb99f094096fc0316ffd337f3cb3af2ede4bd97214179387eada5fd323e7d2cfe569ae0f02ab736fc8f4f3ce2f1e968d574c31b32a65e9be45d83f75e3e6a8e1c66156e8c2ea4ec25074aaf08ec886f1cf6f1538b0ecba94813bd631c2d15871140768df",
+	"20006a00800102030405060708090a0bdf34729eae28017810472d27722108b4ecf8bbab86570959b8f8f912b40930bc90d592f8d4a502966723aacf99f1b9bdb2eda7db2e6d465fca6a481d107e1c6bde21aa56bb3f2331654f033956f599c05cec8b15c4eea063515fad26564009de7bc3488891560524933313388a53b802827a144cf0b9b5978ebfd0",
+	"20016b00800102030405060708090a0b26cf4949f68d88dd1e58b249d7be01afad468718accb01ae95d230247a5892c9868448769b9ad892f7f44a66c46e28c2408109d18a58d2deafbbb8902755379c5a24fa27d6408eaae177034435f7bee239a217a62c58a4fcf43d6353fa9ce2fe88b389f1874dd81816386832b80a3f8ece1319faa8cc83a3ce8622b4",
+	"20006c00800102030405060708090a0bb770d0fccd012cedbdcc25680273bf862e4284992c2c8beaeaabf2680af4e7aff913b93bda79b8af4d804f96c0d22da460eda62d669f432b48df20f7c8f14eff7b3303dabec7119b2745454b217b3f7242209deb7ac19848777445d3bf2a3e78a3eddddf9b30972dd3fcc7b01cc183dc93de8112c905ed65a45bc139ff",
+	"20016d00800102030405060708090a0bb350f2a17f173ba2c90234727576c5e25e2a684b1953e2ba9a9f80ae5e8891cac5503ae9706b2bf291f8302cd8229e321096af335cadbf68f3e0ffb41c6acc52bcac81f9353a53bd6d8c39ae001886a1b5c88bd3d3e6ebf867cc91adc87fbb329fa8ba078534a9532675eb89569042e05b5f1248c100bf784ab6e059a466",
+	"20006e00800102030405060708090a0bf03d774c6f54d569640906afd0052600f050450a89599d08fdb90505cecc4078cef7f092ab23b1f3b2a48c1eca0b39eec071d62dd8299b1a35643d881a057bb160db8217db688ef5457e47717b10d7b556a1ef92db7eba57134fdf3529c42a5482a3304211a69973403e3fc54f33273a24f9f6e610538ce3658c8efde54fd3",
+	"20016f00800102030405060708090a0b5494a64260235b465f43fd65720d268be20dc6c1f44a43a649e0134d5e3b73c18fe0fa7b12221ad8013b65465aa6b269c12ca717e43567a354fd4d5f3af24a32ea5cf6e88e5605ca7dc839fdd7e28f25e8b49665964fb603ec63ec8e8dbdd3105464fb469083fcb1bbc35edbfb9622e9fa97821c4e8d16f00109300b14fd4d7e",
+	"20007000800102030405060708090a0b44774573245179763e3e2c64d98d80a13b5aac72e7b11c0113cd0fac85eb063d1c7cdfe4b922d3dcf2e62ff4f230ac7c61af37eef370fd79a218da2a2ef8e65f468656c09d204b277695f9510b81ceea8b64570b64a71ce3589c19e1981e40d9bc462a4b028336951b541c8688e3a6e42429290ad6d998424bc3c135c4a64c0a45",
+	"20017100800102030405060708090a0bd7cf6da17bdef2ad87e13b5d4a33d9e540fa046a12f5b3b2d76f3fddc61ac62344b6edccc1f7547df05560594c9cfbf2b6088a2709895d03c374d7bf671ee1cc63a5d0d4bceb1fa4b122d858ab02b594d9d2ebc31a17de50c1cee718a95e90e3ebd98a154e0469ed190e79caad443619f593b519f0f2c7e74a86f07752575ef38cf9",
+	"20007200800102030405060708090a0b86ca8960a93d72c3e21694507f165b16e4259fdab769619e2f637ceba065958dc6944e249c54e2e6f5988351ee50624ae5a78a6d80f7d48ba7cb0bf06dee39a30b5fa71f8522c8b2972d37b9d744a5315a9d70b4b1fdf4d7fc79fa9369a04c7b24402b5395944a83cb1d49d4042bea770e26eb02dac18395b1a9d6c62e9dc80a636c18",
+	"20017300800102030405060708090a0bdb9ff03e3fd7685462823236b49d2fcc43848edacbbda59ef92d5323189178c9ce60e7794eb0c954c1fdba6bc3ada13227cf558fa5c3b0fc3e319a06335d21282fb2c0eb1443c726694bf9843bfd4ca705e9ae3a2e5d4ae4b8be5c41236ccbae4c3f78858f665f311b86060b32b1bc4704448164e7924597b65827f88a662dca83e4be89",
+	"20007400800102030405060708090a0bd7df50f6a56d87f7d551caa7967408515ef97057967acabfb34fd4b1829d8c4eb0024fb90b265cd96bef0b6640f9996c74cd26d30a94a837d460975d1c567b8c135f792e38c2aacee05c20dd1d74968057a0220756c307e2e8413e17f298915d52f7ed75519966c19a5b1dcc74d4d47ad65f670d33b35c5db7a4598ab49943ca75d3d773ec",
+	"20017500800102030405060708090a0b5946b723845c8eca08878f3ad67c42c5059fd05da1c6aedf68ad6557e7dbcbc8f9f138669f8c560f6773867e847b0200f70c42f20313b3f528cd4491909cc9beb035a0708e90642c638a2991467021c4d8503849b9507c216ae9a3b136bf3458261ae461535e510e4ba1b38db56a693779af4e28b09e5406b7f9241f106b4cc2c18573436cb6",
+	"20007600800102030405060708090a0b2e03e127bdaeae4b5bcebdeb4c12c0935fd5502a7760c4bb8292b290da5e3b388c7a323486c707fd59df30addb6637fda028b13cec9aece665a61c9c48619d21eeb8694cf9642758f9b802f4f44e38754b49458f347e6552ab5857c483a8c4731bce2debd28941d2fd58b2c524bf5f10da3fa8d83a4d38f232fc21b84d4cc96f9d223cb84bde85",
+	"20017700800102030405060708090a0b0d14259e3682e3c0f5fae9dc5e423d28fd25d536328f073adb1f499b79af718531463207a39a8f51137f1676fc15b73b072e7528ae49b6e153e11b75f634b3bcf4e7e1ef2486ced125ff3f0cfcf9cb0747fcfb021dbeeba4b932c0e4a05ebfeb08585566a54bb6ba107ac16379020ae434096074a8c8ef9721beab6f5525b2919fba45fec80635d3",
+	"20007800800102030405060708090a0ba0679a7ba629de2ba00b268c99e9de0e617c99ad090b4af5191efae3f81d3281516ec1e7c57b748b91fac94b801784a11fda79da84b6a507a4ea888fba6ce563342f9b888e7fcafddf3ec629d4613c10e962acd1998d825b71402628668332b3cc02265926894541aaa2dbf1e2b2cb849f6addfa89fb51c7fb51e770968c65ddd838fcdef600a995a7",
+	"20017900800102030405060708090a0b499d3448e4ff95e76a9d719d7827f374075a6d3866eafb4436603abe96d5092cf0ca7489bfb1e611de815ea29794316a5f76e40c6ed3a0841e5e6564060643e1531033c68fc245f32031619d298bd3a82b04c2fdf439de728fad99e56e441e39d25947ec5f936f7c0f67d518fe2b4ef9cb89879707f283b5c03da5b3f42a6b94b544d31fa389befaea32",
+	"20007a00800102030405060708090a0bf175430f472b9de63f30e49fc938459d682a1d8950fe76e922f0b0083d9b35adf4de6469c5f145e1d637f7cc0978d1c5b42650cce166741881eb621ca8fdfc334e34fdddb0266b0ae4612093b630e72b33a81bb1c1ca4ee15888d3107a5120958e364d979f0fe3f26eebeef9c85d6871c030a976966a5ec4c5bbd71d36b5356804af01451bb0ba3923e76f",
+	"20017b00800102030405060708090a0be83516fc705e3957dbaf78f8fc7f26145d7bd3f31ebb0e9f5e2f8ff9ecc3d2f8427daee4d5ea6899fc5bbc38e23a9c5f7fc07633b6e2920055367ba9526e196c6bf5418dd8a8f47bc1878b23e876c4f15f099ea8f1390f464bae91314470db88fb7a95b0d436e2ed8060f5e83c76e0d29fd01bad28620da06973d89cd33011837124b10639a743cedc189f0a",
+	"20007c00800102030405060708090a0bf1c6d9d37cd42fd96e06311144383ffeba146d99037e5006e1928d7e0fb54ad0b4698ffe41d6cd557e76587904ff2817872ee6a2703d2620de59848fe6169105666460f2efedee9f5ffc0044438a018b15a9c72e560d6f5c548a6d0ace0de0d2a61a00d977e4f69f04653a55e1b4a8cd1129683796d4ebdf0e6eec0ebe5732edfdc6802b7c128075504dc2f059",
+	"20017d00800102030405060708090a0b7edbc19c51bf2e9a38b3c448cea0c90c8f513801c889c462e45c9af14b3003e57a1fdf8e5c3568bd8f1de2e9d5f3e25eaf85a4d32eef9e22ea1f7d019234e627b384b8cd52d1ed2dbced96b8150d864c47fa571862ba1d9f8c4792863c954506dd9798fb7cbf6570b6d271bdc75f044d55c9a0dd9b58bfb61555047f849298560b3df13934f709c5b4cc33d62bbf",
+	"20007e00800102030405060708090a0b41a8e90c53b1ec444a31ad6bda561d55f6e1ee60387b5445b89a8cca9a07acf52f8c35a1fb1d12ac277435f829a29480dcde65169935911f5420ddd9f0dda11ad3297240b8d64368365ae01f63a61d5dba9223087e9b175e7993338a001ca38a3e03b3eb75708226797bf1131f5c0e0fe4a58d90a92d2800c05a39c5178276f81739cc396fcfd57b10c8beb8261334",
+	"20017f00800102030405060708090a0b62eda19d113ac947502317579784aaa3d76df9e024e78dbdacec8ee008c58fe75767e113f90c807989baec368c31bb3e4865cade9d7e463b68fe83e9641e00892c668bbdef938846f7bda1f96cf684cce0dbb2441b29df17e78ef361a4443d11fa04f5a6a5abd157a4c84ea8430932d7116f3feede4e3d1624ed11304ac677658418c532013794827e32bf585454091e",
 }
