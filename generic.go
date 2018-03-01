@@ -26,6 +26,10 @@ type decWriter struct {
 	firstWrite bool
 }
 
+// decryptWriter returns an io.WriteCloser wrapping the given io.Writer.
+// The returned io.WriteCloser detects whether the data written to it is
+// encrypted using DARE 1.0 or 2.0 and decrypts it using the correct DARE
+// version.
 func decryptWriter(w io.Writer, config *Config) *decWriter {
 	return &decWriter{
 		config:     *config,
@@ -72,6 +76,9 @@ type decReader struct {
 	firstRead bool
 }
 
+// decryptReader returns an io.Reader wrapping the given io.Reader.
+// The returned io.Reader detects whether the underlying io.Reader returns
+// DARE 1.0 or 2.0 encrypted data and decrypts it using the correct DARE version.
 func decryptReader(r io.Reader, config *Config) *decReader {
 	return &decReader{
 		config:    *config,

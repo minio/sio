@@ -29,6 +29,8 @@ type encReaderV20 struct {
 	firstRead bool
 }
 
+// encryptReaderV20 returns an io.Reader wrapping the given io.Reader.
+// The returned io.Reader encrypts everything it reads using DARE 2.0.
 func encryptReaderV20(src io.Reader, config *Config) (*encReaderV20, error) {
 	ae, err := newAuthEncV20(config)
 	if err != nil {
@@ -114,6 +116,8 @@ type decReaderV20 struct {
 	offset int
 }
 
+// decryptReaderV20 returns an io.Reader wrapping the given io.Reader.
+// The returned io.Reader decrypts everything it reads using DARE 2.0.
 func decryptReaderV20(src io.Reader, config *Config) (*decReaderV20, error) {
 	ad, err := newAuthDecV20(config)
 	if err != nil {

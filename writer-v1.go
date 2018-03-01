@@ -24,6 +24,11 @@ type decWriterV10 struct {
 	offset int
 }
 
+// decryptWriterV10 returns an io.WriteCloser wrapping the given io.Writer.
+// The returned io.WriteCloser decrypts everything written to it using DARE 1.0
+// and writes all decrypted plaintext to the wrapped io.Writer.
+//
+// The io.WriteCloser must be closed to finalize the decryption successfully.
 func decryptWriterV10(dst io.Writer, config *Config) (*decWriterV10, error) {
 	ad, err := newAuthDecV10(config)
 	if err != nil {
@@ -119,6 +124,12 @@ type encWriterV10 struct {
 	payloadSize int
 }
 
+// encryptWriterV10 returns an io.WriteCloser wrapping the given io.Writer.
+// The returned io.WriteCloser encrypts everything written to it using DARE 1.0
+// and writes all encrypted ciphertext as well as the package header and tag
+// to the wrapped io.Writer.
+//
+// The io.WriteCloser must be closed to finalize the encryption successfully.
 func encryptWriterV10(dst io.Writer, config *Config) (*encWriterV10, error) {
 	ae, err := newAuthEncV10(config)
 	if err != nil {

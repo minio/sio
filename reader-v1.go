@@ -25,6 +25,8 @@ type encReaderV10 struct {
 	payloadSize int
 }
 
+// encryptReaderV10 returns an io.Reader wrapping the given io.Reader.
+// The returned io.Reader encrypts everything it reads using DARE 1.0.
 func encryptReaderV10(src io.Reader, config *Config) (*encReaderV10, error) {
 	ae, err := newAuthEncV10(config)
 	if err != nil {
@@ -84,6 +86,8 @@ type decReaderV10 struct {
 	offset int
 }
 
+// decryptReaderV10 returns an io.Reader wrapping the given io.Reader.
+// The returned io.Reader decrypts everything it reads using DARE 1.0.
 func decryptReaderV10(src io.Reader, config *Config) (*decReaderV10, error) {
 	ad, err := newAuthDecV10(config)
 	if err != nil {

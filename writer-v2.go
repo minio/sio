@@ -26,6 +26,12 @@ type encWriterV20 struct {
 	offset int
 }
 
+// encryptWriterV20 returns an io.WriteCloser wrapping the given io.Writer.
+// The returned io.WriteCloser encrypts everything written to it using DARE 2.0
+// and writes all encrypted ciphertext as well as the package header and tag
+// to the wrapped io.Writer.
+//
+// The io.WriteCloser must be closed to finalize the encryption successfully.
 func encryptWriterV20(dst io.Writer, config *Config) (*encWriterV20, error) {
 	ae, err := newAuthEncV20(config)
 	if err != nil {
@@ -95,6 +101,11 @@ type decWriterV20 struct {
 	offset int
 }
 
+// decryptWriterV20 returns an io.WriteCloser wrapping the given io.Writer.
+// The returned io.WriteCloser decrypts everything written to it using DARE 2.0
+// and writes all decrypted plaintext to the wrapped io.Writer.
+//
+// The io.WriteCloser must be closed to finalize the decryption successfully.
 func decryptWriterV20(dst io.Writer, config *Config) (*decWriterV20, error) {
 	ad, err := newAuthDecV20(config)
 	if err != nil {
