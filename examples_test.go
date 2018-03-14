@@ -87,7 +87,11 @@ func ExampleDecrypt() {
 	output := os.Stdout // customize from your needs - the decrypted output
 
 	if _, err = Decrypt(output, input, Config{Key: key[:]}); err != nil {
-		fmt.Printf("Failed to encrypt data: %v", err) // add error handling
+		if _, ok := err.(Error); ok {
+			fmt.Printf("Malformed encrypted data: %v", err) // add error handling - here we know that the data is malformed/not authentic.
+			return
+		}
+		fmt.Printf("Failed to decrypt data: %v", err) // add error handling
 		return
 	}
 }
