@@ -448,6 +448,64 @@ func TestLargeStream(t *testing.T) {
 	}
 }
 
+var encryptedSizeTests = []struct {
+	size, encSize uint64
+	shouldFail    bool
+}{
+	{size: 0, encSize: 0},                                              // 0
+	{size: 1, encSize: 33},                                             // 1
+	{size: maxPayloadSize + 1, encSize: maxPayloadSize + 1 + 64},       // 2
+	{size: 2 * maxPayloadSize, encSize: 2*maxPayloadSize + 64},         // 3
+	{size: 2*maxPayloadSize + 17, encSize: 2*maxPayloadSize + 17 + 96}, // 4
+	{size: maxDecryptedSize, encSize: maxEncryptedSize},                // 5
+	{size: 1 + maxDecryptedSize, encSize: 0, shouldFail: true},         // 6
+}
+
+func TestEncryptedSize(t *testing.T) {
+	for i, test := range encryptedSizeTests {
+		size, err := EncryptedSize(test.size)
+		if err != nil && !test.shouldFail {
+			t.Errorf("Test %d: expected pass but failed with: %v", i, err)
+		}
+		if err == nil && test.shouldFail {
+			t.Errorf("Test %d: expected fail but succeeded", i)
+		}
+		if size != test.encSize {
+			t.Errorf("Test %d: got: %d want: %d", i, size, test.encSize)
+		}
+	}
+}
+
+var decryptedSizeTests = []struct {
+	size, decSize uint64
+	shouldFail    bool
+}{
+	{size: 0, decSize: 0},                                              // 0
+	{size: 33, decSize: 1},                                             // 1
+	{size: maxPayloadSize + 1 + 64, decSize: maxPayloadSize + 1},       // 2
+	{size: 2*maxPayloadSize + 64, decSize: 2 * maxPayloadSize},         // 3
+	{size: 2*maxPayloadSize + 17 + 96, decSize: 2*maxPayloadSize + 17}, // 4
+	{size: maxEncryptedSize, decSize: maxDecryptedSize},                // 5
+	{size: 1 + maxEncryptedSize, decSize: 0, shouldFail: true},         // 6
+	{size: 1, decSize: 0, shouldFail: true},                            // 7
+	{size: maxPackageSize + 1, decSize: 0, shouldFail: true},           // 8
+}
+
+func TestDecryptedSize(t *testing.T) {
+	for i, test := range decryptedSizeTests {
+		size, err := DecryptedSize(test.size)
+		if err != nil && !test.shouldFail {
+			t.Errorf("Test %d: expected pass but failed with: %v", i, err)
+		}
+		if err == nil && test.shouldFail {
+			t.Errorf("Test %d: expected fail but succeeded", i)
+		}
+		if size != test.decSize {
+			t.Errorf("Test %d: got: %d want: %d", i, size, test.decSize)
+		}
+	}
+}
+
 // Benchmarks
 
 func BenchmarkEncryptReader_8KB(b *testing.B)   { benchmarkEncryptRead(1024, b) }
