@@ -67,20 +67,27 @@ var supportedCiphers = [...]func([]byte) (cipher.AEAD, error){
 }
 
 var (
-	errUnsupportedVersion = errors.New("sio: unsupported version")
-	errUnsupportedCipher  = errors.New("sio: unsupported cipher suite")
-	errInvalidPayloadSize = errors.New("sio: invalid payload size")
-	errTagMismatch        = errors.New("sio: authentication failed")
-	errUnexpectedSize     = errors.New("sio: size is too large for DARE")
+	errUnsupportedVersion = Error{"sio: unsupported version"}
+	errUnsupportedCipher  = Error{"sio: unsupported cipher suite"}
+	errInvalidPayloadSize = Error{"sio: invalid payload size"}
+	errTagMismatch        = Error{"sio: authentication failed"}
+	errUnexpectedSize     = Error{"sio: size is too large for DARE"}
 
 	// Version 1.0 specific
-	errPackageOutOfOrder = errors.New("sio: sequence number mismatch")
+	errPackageOutOfOrder = Error{"sio: sequence number mismatch"}
 
 	// Version 2.0 specific
-	errNonceMismatch  = errors.New("sio: header nonce mismatch")
-	errUnexpectedEOF  = errors.New("sio: unexpected EOF")
-	errUnexpectedData = errors.New("sio: unexpected data after final package")
+	errNonceMismatch  = Error{"sio: header nonce mismatch"}
+	errUnexpectedEOF  = Error{"sio: unexpected EOF"}
+	errUnexpectedData = Error{"sio: unexpected data after final package"}
 )
+
+// Error is the error returned by an io.Reader or io.Writer
+// if the encrypted data cannot be decrypted because it is
+// malformed or not authentic.
+type Error struct{ msg string }
+
+func (e Error) Error() string { return e.msg }
 
 // Config contains the format configuration. The only field
 // which must always be set manually is the secret key.
@@ -172,7 +179,8 @@ func Encrypt(dst io.Writer, src io.Reader, config Config) (n int64, err error) {
 // decrypted and the first error encountered while decrypting, if any.
 //
 // Decrypt returns the number of bytes written to dst. Decrypt only writes data to
-// dst if the data was decrypted successfully.
+// dst if the data was decrypted successfully. It returns an error of type sio.Error
+// if decryption fails.
 func Decrypt(dst io.Writer, src io.Reader, config Config) (n int64, err error) {
 	decReader, err := DecryptReader(src, config)
 	if err != nil {
@@ -196,7 +204,8 @@ func EncryptReader(src io.Reader, config Config) (io.Reader, error) {
 
 // DecryptReader wraps the given src and returns an io.Reader which decrypts
 // all received data. DecryptReader returns an error if the provided decryption
-// configuration is invalid.
+// configuration is invalid. The returned io.Reader returns an error of
+// type sio.Error if the decryption fails.
 func DecryptReader(src io.Reader, config Config) (io.Reader, error) {
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -231,7 +240,8 @@ func EncryptWriter(dst io.Writer, config Config) (io.WriteCloser, error) {
 // provided decryption configuration is invalid.
 //
 // The returned io.WriteCloser must be closed successfully to finalize the
-// decryption process.
+// decryption process. The returned io.WriteCloser returns an error of
+// type sio.Error if the decryption fails.
 func DecryptWriter(dst io.Writer, config Config) (io.WriteCloser, error) {
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err

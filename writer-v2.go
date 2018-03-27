@@ -52,7 +52,7 @@ func (w *encWriterV20) Write(p []byte) (n int, err error) {
 	}
 	if w.offset > 0 { // buffer the plaintext data
 		remaining := maxPayloadSize - w.offset
-		if len(p) <= remaining { // <= is important here to buffer up to 64 KB (inclusivly) - see: Close()
+		if len(p) <= remaining { // <= is important here to buffer up to 64 KB (inclusively) - see: Close()
 			w.offset += copy(w.buffer[headerSize+w.offset:], p)
 			return len(p), nil
 		}
