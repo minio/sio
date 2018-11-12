@@ -22,9 +22,10 @@ import (
 	"crypto/rand"
 	"errors"
 	"io"
+	"runtime"
 
-	"github.com/minio/sio/internal/cpu"
 	"golang.org/x/crypto/chacha20poly1305"
+	"golang.org/x/sys/cpu"
 )
 
 const (
@@ -40,6 +41,10 @@ const (
 	// CHACHA20_POLY1305 specifies the cipher suite ChaCha20Poly1305 with 256 bit keys.
 	CHACHA20_POLY1305
 )
+
+// supportsAES indicates whether the CPU provides hardware support for AES-GCM.
+// AES-GCM should only be selected as default cipher if there's hardware support.
+var supportsAES = (cpu.X86.HasAES && cpu.X86.HasPCLMULQDQ) || runtime.GOARCH == "s390x"
 
 const (
 	keySize = 32
@@ -256,7 +261,7 @@ func DecryptWriter(dst io.Writer, config Config) (io.WriteCloser, error) {
 }
 
 func defaultCipherSuites() []byte {
-	if cpu.SupportsAES() {
+	if supportsAES {
 		return []byte{AES_256_GCM, CHACHA20_POLY1305}
 	}
 	return []byte{CHACHA20_POLY1305, AES_256_GCM}
