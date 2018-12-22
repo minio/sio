@@ -101,7 +101,7 @@ func init() {
 
 var supportedCiphers = map[string]string{
 	"AES256":   "AES-256 GCM",
-	"C20P1305": "ChaCah20 Poly1305",
+	"C20P1305": "ChaCha20 Poly1305",
 }
 
 func main() {
