@@ -217,7 +217,7 @@ func readPassword(src *os.File) []byte {
 	fmt.Fprintln(src, "")
 	if len(password) == 0 {
 		fmt.Fprintln(os.Stderr, "Failed to read password: No password")
-		exit(codeOK)
+		exit(codeError)
 	}
 	return password
 }
