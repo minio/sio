@@ -59,9 +59,10 @@ var (
 )
 
 var (
-	listFlag    bool
-	decryptFlag bool
-	cipherFlag  string
+	listFlag     bool
+	decryptFlag  bool
+	cipherFlag   string
+	passwordFlag string
 )
 
 func init() {
@@ -69,6 +70,7 @@ func init() {
 	flag.BoolVar(&decryptFlag, "d", false, fmt.Sprintf("%-8s Decrypt", ""))
 
 	flag.StringVar(&cipherFlag, "cipher", "", fmt.Sprintf("%-8s Specify cipher - default: platform depended", "string"))
+	flag.StringVar(&passwordFlag, "p", "", fmt.Sprintf("%-8s Specify the password - default: prompt for password", "string"))
 
 	flag.Usage = func() {
 		printFlag := func(f *flag.Flag) {
@@ -217,14 +219,16 @@ func readPassword(src *os.File) []byte {
 	fmt.Fprintln(src, "")
 	if len(password) == 0 {
 		fmt.Fprintln(os.Stderr, "Failed to read password: No password")
-		exit(codeOK)
+		exit(codeError)
 	}
 	return password
 }
 
 func deriveKey(dst, src *os.File) []byte {
 	password, salt := []byte{}, make([]byte, 32)
-	if src == os.Stdin {
+	if passwordFlag != "" {
+		password = []byte(passwordFlag)
+	} else if src == os.Stdin {
 		password = readPassword(os.Stderr)
 	} else {
 		password = readPassword(os.Stdin)
