@@ -22,7 +22,7 @@
 //    -cipher string   Specify cipher - default: platform depended
 //    -d               Decrypt
 //    -list            List supported algorithms
-//
+//    -p      string   Specify the password - default: prompt for password
 //
 // Examples:
 //
