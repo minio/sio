@@ -224,6 +224,23 @@ func DecryptReader(src io.Reader, config Config) (io.Reader, error) {
 	return decryptReader(src, &config), nil
 }
 
+// DecryptReaderAt wraps the given src and returns an io.ReaderAt which decrypts
+// all received data. DecryptReaderAt returns an error if the provided decryption
+// configuration is invalid. The returned io.ReaderAt returns an error of
+// type sio.Error if the decryption fails.
+func DecryptReaderAt(src io.ReaderAt, config Config) (io.ReaderAt, error) {
+	if err := setConfigDefaults(&config); err != nil {
+		return nil, err
+	}
+	if config.MinVersion == Version10 && config.MaxVersion == Version10 {
+		return decryptReaderAtV10(src, &config)
+	}
+	if config.MinVersion == Version20 && config.MaxVersion == Version20 {
+		return decryptReaderAtV20(src, &config)
+	}
+	return decryptReaderAt(src, &config), nil
+}
+
 // EncryptWriter wraps the given dst and returns an io.WriteCloser which
 // encrypts all data written to it. EncryptWriter returns an error if the
 // provided decryption configuration is invalid.

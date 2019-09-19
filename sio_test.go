@@ -162,6 +162,96 @@ func TestReader(t *testing.T) {
 			if err != nil && err != io.ErrUnexpectedEOF {
 				t.Errorf("Version %d: Test %d: Reading failed: %v", version, i, err)
 			}
+
+			if version == Version20 {
+				ciphertext := bytes.NewBuffer(nil)
+				encReader, err = EncryptReader(bytes.NewReader(data), config)
+				if err != nil {
+					t.Fatalf("Version %d: Test %d: Failed to create encrypted reader: %v", version, i, err)
+				}
+				if _, err = io.Copy(ciphertext, encReader); err != nil {
+					t.Fatalf("Version %d: Test %d: Failed to encrypted data: %v", version, i, err)
+				}
+
+				plaintext := bytes.NewBuffer(nil)
+				decReaderAt, err := DecryptReaderAt(bytes.NewReader(ciphertext.Bytes()), config)
+				if err != nil {
+					t.Fatalf("Version %d: Test %d: Failed to create decrypted reader: %v", version, i, err)
+				}
+				if _, err = io.Copy(plaintext, io.NewSectionReader(decReaderAt, 0, int64(ciphertext.Len()))); err != nil {
+					t.Fatalf("Version %d: Test %d: Failed to encrypted data: %v", version, i, err)
+				}
+				if !bytes.Equal(data, plaintext.Bytes()) {
+					t.Fatalf("Version %d: Test %d: The plaintexts do not match: %v", version, i, err)
+				}
+			}
+		}
+	}
+}
+
+func TestReaderAt(t *testing.T) {
+	config := Config{Key: make([]byte, 32)}
+	plaintext := bytes.NewBuffer(nil)
+	ciphertext := bytes.NewBuffer(nil)
+	for _, version := range versions {
+		config.MinVersion, config.MaxVersion = version, version
+		for i, test := range ioTests {
+			plaintext.Reset()
+			ciphertext.Reset()
+
+			data := make([]byte, test.datasize)
+			encReader, err := EncryptReader(bytes.NewReader(data), config)
+			if err != nil {
+				t.Fatalf("Version %d: Test %d: Failed to create encrypted reader: %v", version, i, err)
+			}
+			if _, err = io.Copy(ciphertext, encReader); err != nil {
+				t.Fatalf("Version %d: Test %d: Failed to encrypted data: %v", version, i, err)
+			}
+
+			decReaderAt, err := DecryptReaderAt(bytes.NewReader(ciphertext.Bytes()), config)
+			if err != nil {
+				t.Fatalf("Version %d: Test %d: Failed to create decrypted reader: %v", version, i, err)
+			}
+			if _, err = io.Copy(plaintext, io.NewSectionReader(decReaderAt, 0, int64(test.datasize/2))); err != nil {
+				t.Fatalf("Version %d: Test %d: Failed to decrypted data: %v", version, i, err)
+			}
+			if _, err = io.Copy(plaintext, io.NewSectionReader(decReaderAt, int64(test.datasize/2), int64(test.datasize))); err != nil {
+				t.Fatalf("Version %d: Test %d: Failed to decrypted data: %v", version, i, err)
+			}
+			if !bytes.Equal(data, plaintext.Bytes()) {
+				t.Fatalf("Version %d: Test %d: The plaintexts do not match", version, i)
+			}
+		}
+	}
+}
+
+func TestReaderAtSection(t *testing.T) {
+	config := Config{Key: make([]byte, 32)}
+	plaintext := bytes.NewBuffer(nil)
+	ciphertext := bytes.NewBuffer(nil)
+	data := append(make([]byte, maxPackageSize), []byte("Hello World")...)
+	for _, version := range versions {
+		config.MinVersion, config.MaxVersion = version, version
+		plaintext.Reset()
+		ciphertext.Reset()
+
+		encReader, err := EncryptReader(bytes.NewReader(data), config)
+		if err != nil {
+			t.Fatalf("Version %d: Failed to create encrypted reader: %v", version, err)
+		}
+		if _, err = io.Copy(ciphertext, encReader); err != nil {
+			t.Fatalf("Version %d: Failed to encrypted data: %v", version, err)
+		}
+
+		decReaderAt, err := DecryptReaderAt(bytes.NewReader(ciphertext.Bytes()), config)
+		if err != nil {
+			t.Fatalf("Version %d: Failed to create decrypted reader: %v", version, err)
+		}
+		if _, err = io.Copy(plaintext, io.NewSectionReader(decReaderAt, maxPackageSize+6, int64(len(data)))); err != nil {
+			t.Fatalf("Version %d: Failed to decrypted data: %v", version, err)
+		}
+		if !bytes.Equal([]byte("World"), plaintext.Bytes()) {
+			t.Fatalf("Version %d: The plaintexts do not match", version)
 		}
 	}
 }
@@ -320,7 +410,6 @@ func testFile(t *testing.T, file string) {
 	config := Config{Key: key}
 
 	decrypted, output := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
-
 	if _, err := Encrypt(output, bytes.NewReader(data), config); err != nil {
 		t.Errorf("Encryption failed: %v", err)
 	}
@@ -452,8 +541,8 @@ var encryptedSizeTests = []struct {
 	size, encSize uint64
 	shouldFail    bool
 }{
-	{size: 0, encSize: 0},                                              // 0
-	{size: 1, encSize: 33},                                             // 1
+	{size: 0, encSize: 0},  // 0
+	{size: 1, encSize: 33}, // 1
 	{size: maxPayloadSize + 1, encSize: maxPayloadSize + 1 + 64},       // 2
 	{size: 2 * maxPayloadSize, encSize: 2*maxPayloadSize + 64},         // 3
 	{size: 2*maxPayloadSize + 17, encSize: 2*maxPayloadSize + 17 + 96}, // 4
@@ -480,8 +569,8 @@ var decryptedSizeTests = []struct {
 	size, decSize uint64
 	shouldFail    bool
 }{
-	{size: 0, decSize: 0},                                              // 0
-	{size: 33, decSize: 1},                                             // 1
+	{size: 0, decSize: 0},  // 0
+	{size: 33, decSize: 1}, // 1
 	{size: maxPayloadSize + 1 + 64, decSize: maxPayloadSize + 1},       // 2
 	{size: 2*maxPayloadSize + 64, decSize: 2 * maxPayloadSize},         // 3
 	{size: 2*maxPayloadSize + 17 + 96, decSize: 2*maxPayloadSize + 17}, // 4
@@ -517,6 +606,11 @@ func BenchmarkDecryptReader_8KB(b *testing.B)   { benchmarkDecryptRead(1024, b) 
 func BenchmarkDecryptReader_64KB(b *testing.B)  { benchmarkDecryptRead(64*1024, b) }
 func BenchmarkDecryptReader_512KB(b *testing.B) { benchmarkDecryptRead(512*1024, b) }
 func BenchmarkDecryptReader_1MB(b *testing.B)   { benchmarkDecryptRead(1024*1024, b) }
+
+func BenchmarkDecryptReaderAt_8KB(b *testing.B)   { benchmarkDecryptReadAt(1024, b) }
+func BenchmarkDecryptReaderAt_64KB(b *testing.B)  { benchmarkDecryptReadAt(64*1024, b) }
+func BenchmarkDecryptReaderAt_512KB(b *testing.B) { benchmarkDecryptReadAt(512*1024, b) }
+func BenchmarkDecryptReaderAt_1MB(b *testing.B)   { benchmarkDecryptReadAt(1024*1024, b) }
 
 func BenchmarkEncryptWriter_8KB(b *testing.B)   { benchmarkEncryptWrite(1024, b) }
 func BenchmarkEncryptWriter_64KB(b *testing.B)  { benchmarkEncryptWrite(64*1024, b) }
@@ -570,6 +664,38 @@ func benchmarkDecryptRead(size int64, b *testing.B) {
 		if _, err := io.ReadFull(reader, data); err != nil && err != io.EOF {
 			b.Fatal(err)
 		}
+	}
+}
+
+func benchmarkDecryptReadAt(size int64, b *testing.B) {
+	data := make([]byte, size)
+	config := Config{Key: make([]byte, 32)}
+	encrypted := bytes.NewBuffer(nil)
+	encWriter, err := EncryptWriter(encrypted, config)
+	if err != nil {
+		b.Fatalf("Failed to create encrypted writer: %v", err)
+	}
+	if _, err := encWriter.Write(data); err != nil {
+		b.Fatalf("Failed to write encrypted data: %v", err)
+	}
+	if err := encWriter.Close(); err != nil {
+		b.Fatalf("Failed to close encrypted writer: %v", err)
+	}
+
+	b.SetBytes(size)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		reader, err := DecryptReaderAt(bytes.NewReader(encrypted.Bytes()), config)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if _, err := reader.ReadAt(data[:len(data)/2], 0); err != nil && err != io.EOF {
+			b.Fatal(err)
+		}
+		if _, err := reader.ReadAt(data[len(data)/2:], int64(len(data)/2)); err != nil && err != io.EOF {
+			b.Fatal(err)
+		}
+
 	}
 }
 
