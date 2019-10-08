@@ -14,7 +14,12 @@
 
 package sio
 
-import "io"
+import (
+	"errors"
+	"io"
+	"io/ioutil"
+	"sync"
+)
 
 type encReaderV10 struct {
 	authEncV10
@@ -160,4 +165,67 @@ func (r *decReaderV10) readPackage(dst packageV10) error {
 		return err // reading from src failed or reached EOF
 	}
 	return nil
+}
+
+type decReaderAtV10 struct {
+	src io.ReaderAt
+
+	ad      authDecV10
+	bufPool sync.Pool
+}
+
+// decryptReaderAtV10 returns an io.ReaderAt wrapping the given io.ReaderAt.
+// The returned io.ReaderAt decrypts everything it reads using DARE 1.0.
+func decryptReaderAtV10(src io.ReaderAt, config *Config) (*decReaderAtV10, error) {
+	ad, err := newAuthDecV10(config)
+	if err != nil {
+		return nil, err
+	}
+	r := &decReaderAtV10{
+		ad:  ad,
+		src: src,
+	}
+	r.bufPool = sync.Pool{
+		New: func() interface{} {
+			b := make([]byte, maxPackageSize)
+			return &b
+		},
+	}
+	return r, nil
+}
+
+func (r *decReaderAtV10) ReadAt(p []byte, offset int64) (n int, err error) {
+	if offset < 0 {
+		return 0, errors.New("sio: DecReaderAt.ReadAt: offset is negative")
+	}
+
+	t := offset / int64(maxPayloadSize)
+	if t+1 > (1<<32)-1 {
+		return 0, errUnexpectedSize
+	}
+
+	buffer := r.bufPool.Get().(*[]byte)
+	defer r.bufPool.Put(buffer)
+	decReader := decReaderV10{
+		authDecV10: r.ad,
+		src:        &sectionReader{r.src, t * maxPackageSize},
+		buffer:     packageV10(*buffer),
+		offset:     0,
+	}
+	decReader.SeqNum = uint32(t)
+	if k := offset % int64(maxPayloadSize); k > 0 {
+		if _, err := io.CopyN(ioutil.Discard, &decReader, k); err != nil {
+			return 0, err
+		}
+	}
+
+	for n < len(p) && err == nil {
+		var nn int
+		nn, err = (&decReader).Read(p[n:])
+		n += nn
+	}
+	if err == io.EOF && n == len(p) {
+		err = nil
+	}
+	return n, err
 }
