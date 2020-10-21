@@ -17,6 +17,7 @@
 package sio // import "github.com/minio/sio"
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -192,6 +193,30 @@ func Decrypt(dst io.Writer, src io.Reader, config Config) (n int64, err error) {
 		return 0, err
 	}
 	return io.CopyBuffer(dst, decReader, make([]byte, maxPayloadSize))
+}
+
+// DecryptBuffer decrypts all received data in src.
+// The decrypted data is appended to dst.
+// If the number of output bytes is unknown,
+// making a dst with capacity of len(src) is reasonable.
+//
+// DecryptBuffer only returns data to if the data was decrypted successfully.
+// It returns an error of type sio.Error if decryption fails.
+func DecryptBuffer(dst, src []byte, config Config) (output []byte, err error) {
+	if err := setConfigDefaults(&config); err != nil {
+		return nil, err
+	}
+	if config.MinVersion == Version10 && config.MaxVersion == Version10 {
+		buf := bytes.NewBuffer(dst)
+		if _, err := Decrypt(buf, bytes.NewBuffer(src), config); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	}
+	if config.MinVersion == Version20 && config.MaxVersion == Version20 {
+		return decryptBufferV20(dst, src, &config)
+	}
+	return decryptBuffer(dst, src, &config)
 }
 
 // EncryptReader wraps the given src and returns an io.Reader which encrypts
