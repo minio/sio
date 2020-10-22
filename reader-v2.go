@@ -180,6 +180,40 @@ func (r *decReaderV20) Read(p []byte) (n int, err error) {
 	return n, nil
 }
 
+// decryptBufferV20 will append plaintext to dst and return the result.
+func decryptBufferV20(dst, src []byte, config *Config) ([]byte, error) {
+	ad, err := newAuthDecV20(config)
+	if err != nil {
+		return nil, err
+	}
+	for len(src) > 0 {
+		buffer := packageV20(src)
+		// Truncate to max package size
+		if len(buffer) > maxPackageSize {
+			buffer = buffer[:maxPackageSize]
+		}
+
+		// Make space in dst
+		payloadLen := buffer.Header().Length()
+		if cap(dst) >= len(dst)+payloadLen {
+			dst = dst[:len(dst)+payloadLen]
+		} else {
+			dst = append(dst, make([]byte, payloadLen)...)
+		}
+
+		// Write directly to dst.
+		if err = ad.Open(dst[len(dst)-payloadLen:], buffer); err != nil {
+			return nil, err // decryption failed
+		}
+		// Forward to next block.
+		src = src[buffer.Length():]
+	}
+	if !ad.finalized {
+		return nil, errUnexpectedEOF
+	}
+	return dst, nil
+}
+
 type decReaderAtV20 struct {
 	src io.ReaderAt
 

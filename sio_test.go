@@ -136,6 +136,68 @@ func TestEncrypt(t *testing.T) {
 	}
 }
 
+func TestDecryptBuffer(t *testing.T) {
+	key := make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, key); err != nil {
+		t.Fatalf("Failed to generate random key: %v", err)
+	}
+	config := Config{Key: key}
+
+	for _, version := range versions {
+		t.Run(fmt.Sprintf("v-%x", version), func(t *testing.T) {
+
+			config.MinVersion, config.MaxVersion = version, version
+			for i, test := range ioTests {
+				t.Run(fmt.Sprintf("test-%d", i), func(t *testing.T) {
+
+					data := make([]byte, test.datasize)
+					if _, err := io.ReadFull(rand.Reader, data); err != nil {
+						t.Fatalf("Version %d: Test %d: Failed to generate random data: %v", version, i, err)
+					}
+
+					output := bytes.NewBuffer(nil)
+
+					if _, err := Encrypt(output, bytes.NewReader(data), config); err != nil {
+						t.Errorf("Version %d: Test %d: Encryption failed: %v", version, i, err)
+					}
+					// dumpDareStream(output.Bytes())
+					decrypted, err := DecryptBuffer(make([]byte, 0, output.Len()), output.Bytes(), config)
+					if len(decrypted) != test.datasize || err != nil {
+						t.Errorf("Version %d: Test %d: Decryption failed: number of bytes: %d vs. %d - %v", version, i, len(decrypted), test.datasize, err)
+						return
+					}
+					if !bytes.Equal(data, decrypted) {
+						t.Errorf("Version %d: Test: %d: Failed to encrypt and decrypt data", version, i)
+					}
+
+					// Test with existing data.
+					decrypted, err = DecryptBuffer(make([]byte, 500, 500), output.Bytes(), config)
+					if err != nil {
+						t.Errorf("Version %d: Test %d: Decryption failed: number of bytes: %d vs. %d - %v", version, i, len(decrypted), test.datasize, err)
+						return
+					}
+					if len(decrypted) != test.datasize+500 {
+						t.Errorf("Version %d: Test %d: Decryption failed: number of bytes: %d vs. %d - %v", version, i, len(decrypted), test.datasize, err)
+						return
+					}
+					if !bytes.Equal(decrypted[:500], make([]byte, 500)) {
+						t.Errorf("pre-output data was modified")
+						return
+					}
+					decrypted = decrypted[500:]
+					if len(decrypted) != test.datasize {
+						t.Errorf("Version %d: Test %d: Decryption failed: number of bytes: %d vs. %d - %v", version, i, len(decrypted), test.datasize, err)
+						return
+					}
+					if !bytes.Equal(data, decrypted) {
+						t.Errorf("Version %d: Test: %d: Failed to encrypt and decrypt data", version, i)
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestReader(t *testing.T) {
 	config := Config{Key: make([]byte, 32)}
 	for _, version := range versions {

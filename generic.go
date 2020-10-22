@@ -116,6 +116,27 @@ func (r *decReader) Read(p []byte) (n int, err error) {
 	return r.src.Read(p)
 }
 
+// decryptBuffer detects the DARE version and decrypts the appropriate version.
+// DARE 1.0 or 2.0 encrypted data and decrypts it using the correct DARE version.
+func decryptBuffer(dst, src []byte, config *Config) ([]byte, error) {
+	if len(src) < headerSize {
+		return nil, errUnexpectedEOF
+	}
+	// First byte is version
+	switch src[0] {
+	default:
+		return nil, errUnsupportedVersion
+	case Version10:
+		buf := bytes.NewBuffer(dst)
+		if _, err := Decrypt(buf, bytes.NewBuffer(src), *config); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	case Version20:
+		return decryptBufferV20(dst, src, config)
+	}
+}
+
 type decReaderAt struct {
 	config Config
 	src    io.ReaderAt
