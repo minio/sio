@@ -171,7 +171,7 @@ func TestDecryptBuffer(t *testing.T) {
 					}
 
 					// Test with existing data.
-					decrypted, err = DecryptBuffer(make([]byte, 500, output.Len()+500), output.Bytes(), config)
+					decrypted, err = DecryptBuffer(make([]byte, 500, 500), output.Bytes(), config)
 					if err != nil {
 						t.Errorf("Version %d: Test %d: Decryption failed: number of bytes: %d vs. %d - %v", version, i, len(decrypted), test.datasize, err)
 						return

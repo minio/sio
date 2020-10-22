@@ -195,7 +195,7 @@ func decryptBufferV20(dst, src []byte, config *Config) ([]byte, error) {
 
 		// Make space in dst
 		payloadLen := buffer.Header().Length()
-		if cap(dst) <= len(dst)+payloadLen {
+		if cap(dst) >= len(dst)+payloadLen {
 			dst = dst[:len(dst)+payloadLen]
 		} else {
 			dst = append(dst, make([]byte, payloadLen)...)
