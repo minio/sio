@@ -81,31 +81,6 @@ var ioTests = []struct {
 
 }
 
-func dumpDareStream(strm []byte) {
-	i := 0
-	for {
-		hdr := headerV10(strm[i : i+headerSize])
-
-		fmt.Print("[")
-		for i, b := range hdr {
-			fmt.Printf("%02x", b)
-			if i != len(hdr)-1 {
-				fmt.Print(" ")
-			}
-		}
-		fmt.Print("]")
-
-		fmt.Printf(" version=0x%02x, cipher=0x%02x, len=0x%x, sequencenr=0x%x\n", hdr.Version(), hdr.Cipher(), hdr.Len(), hdr.SequenceNumber())
-
-		i += headerSize + hdr.Len() + tagSize
-		if i == len(strm) {
-			break
-		} else if i > len(strm) {
-			panic(fmt.Sprintf("index larger than stream size, %d, %d", i, len(strm)))
-		}
-	}
-}
-
 func TestEncrypt(t *testing.T) {
 	key := make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, key); err != nil {
@@ -171,7 +146,7 @@ func TestDecryptBuffer(t *testing.T) {
 					}
 
 					// Test with existing data.
-					decrypted, err = DecryptBuffer(make([]byte, 500, 500), output.Bytes(), config)
+					decrypted, err = DecryptBuffer(make([]byte, 500), output.Bytes(), config)
 					if err != nil {
 						t.Errorf("Version %d: Test %d: Decryption failed: number of bytes: %d vs. %d - %v", version, i, len(decrypted), test.datasize, err)
 						return
@@ -484,14 +459,16 @@ func testFile(t *testing.T, file string) {
 }
 
 func TestFiles(t *testing.T) {
-
 	fileList := []string{}
-	filepath.Walk(".", func(path string, f os.FileInfo, err error) error {
+	err := filepath.Walk(".", func(path string, f os.FileInfo, err error) error {
 		if !f.IsDir() {
 			fileList = append(fileList, path)
 		}
 		return nil
 	})
+	if err != nil {
+		t.Fatalf("Failed to walk directory: %v", err)
+	}
 
 	for _, file := range fileList {
 		testFile(t, file)
