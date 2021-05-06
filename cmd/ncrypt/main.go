@@ -95,7 +95,7 @@ func init() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
-		_ = <-sigChan
+		<-sigChan
 		cleanChan <- codeCancel // try to exit gracefully
 		runtime.Goexit()
 	}()
@@ -122,7 +122,6 @@ func main() {
 	} else {
 		encrypt(out, in, cfg)
 	}
-	return
 }
 
 func exit(code int) {
@@ -225,7 +224,10 @@ func readPassword(src *os.File) []byte {
 }
 
 func deriveKey(dst, src *os.File) []byte {
-	password, salt := []byte{}, make([]byte, 32)
+	var (
+		password []byte
+		salt     = make([]byte, 32)
+	)
 	if passwordFlag != "" {
 		password = []byte(passwordFlag)
 	} else if src == os.Stdin {
