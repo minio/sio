@@ -28,8 +28,22 @@ type encReaderV20 struct {
 	buffer   packageV20
 	offset   int
 	lastByte byte
+	stateErr error
 
 	firstRead bool
+}
+
+var packageBufferPool = sync.Pool{New: func() interface{} { return make([]byte, maxPackageSize) }}
+
+func recyclePackageBufferPool(b []byte) {
+	if cap(b) < maxPackageSize {
+		return
+	}
+	// Clear so we don't potentially leak info between callers
+	for i := range b {
+		b[i] = 0
+	}
+	packageBufferPool.Put(b)
 }
 
 // encryptReaderV20 returns an io.Reader wrapping the given io.Reader.
@@ -42,12 +56,20 @@ func encryptReaderV20(src io.Reader, config *Config) (*encReaderV20, error) {
 	return &encReaderV20{
 		authEncV20: ae,
 		src:        src,
-		buffer:     make(packageV20, maxPackageSize),
+		buffer:     packageBufferPool.Get().([]byte)[:maxPackageSize],
 		firstRead:  true,
 	}, nil
 }
 
+func (r *encReaderV20) recycle() {
+	recyclePackageBufferPool(r.buffer)
+	r.buffer = nil
+}
+
 func (r *encReaderV20) Read(p []byte) (n int, err error) {
+	if r.stateErr != nil {
+		return 0, r.stateErr
+	}
 	if r.firstRead {
 		r.firstRead = false
 		_, err = io.ReadFull(r.src, r.buffer[headerSize:headerSize+1])
@@ -56,6 +78,8 @@ func (r *encReaderV20) Read(p []byte) (n int, err error) {
 		}
 		if err == io.EOF {
 			r.finalized = true
+			r.stateErr = io.EOF
+			r.recycle()
 			return 0, io.EOF
 		}
 		r.lastByte = r.buffer[headerSize]
@@ -72,6 +96,8 @@ func (r *encReaderV20) Read(p []byte) (n int, err error) {
 		r.offset = 0
 	}
 	if r.finalized {
+		r.stateErr = io.EOF
+		r.recycle()
 		return n, io.EOF
 	}
 	for len(p) >= maxPackageSize {
@@ -93,12 +119,16 @@ func (r *encReaderV20) Read(p []byte) (n int, err error) {
 		r.buffer[headerSize] = r.lastByte
 		nn, err := io.ReadFull(r.src, r.buffer[headerSize+1:headerSize+1+maxPayloadSize]) // try to read the max. payload
 		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+			r.stateErr = err
+			r.recycle()
 			return n, err // failed to read from src
 		}
 		if err == io.EOF || err == io.ErrUnexpectedEOF { // read less than 64KB -> final package
 			r.SealFinal(r.buffer, r.buffer[headerSize:headerSize+1+nn])
 			if len(p) > r.buffer.Length() {
 				n += copy(p, r.buffer[:r.buffer.Length()])
+				r.stateErr = io.EOF
+				r.recycle()
 				return n, io.EOF
 			}
 		} else {
@@ -115,8 +145,9 @@ type decReaderV20 struct {
 	authDecV20
 	src io.Reader
 
-	buffer packageV20
-	offset int
+	stateErr error
+	buffer   packageV20
+	offset   int
 }
 
 // decryptReaderV20 returns an io.Reader wrapping the given io.Reader.
@@ -129,11 +160,19 @@ func decryptReaderV20(src io.Reader, config *Config) (*decReaderV20, error) {
 	return &decReaderV20{
 		authDecV20: ad,
 		src:        src,
-		buffer:     make(packageV20, maxPackageSize),
+		buffer:     packageBufferPool.Get().([]byte)[:maxPackageSize],
 	}, nil
 }
 
+func (r *decReaderV20) recycle() {
+	recyclePackageBufferPool(r.buffer)
+	r.buffer = nil
+}
+
 func (r *decReaderV20) Read(p []byte) (n int, err error) {
+	if r.stateErr != nil {
+		return 0, r.stateErr
+	}
 	if r.offset > 0 { // write the buffered plaintext to p
 		remaining := len(r.buffer.Payload()) - r.offset
 		if len(p) < remaining {
@@ -151,9 +190,13 @@ func (r *decReaderV20) Read(p []byte) (n int, err error) {
 			return n, errUnexpectedEOF // reached EOF but not seen final package yet
 		}
 		if err != nil && err != io.ErrUnexpectedEOF {
+			r.recycle()
+			r.stateErr = err
 			return n, err // reading from src failed or reached EOF
 		}
 		if err = r.Open(p, r.buffer[:nn]); err != nil {
+			r.recycle()
+			r.stateErr = err
 			return n, err // decryption failed
 		}
 		p = p[len(r.buffer.Payload()):]
@@ -162,9 +205,13 @@ func (r *decReaderV20) Read(p []byte) (n int, err error) {
 	if len(p) > 0 {
 		nn, err := io.ReadFull(r.src, r.buffer)
 		if err == io.EOF && !r.finalized {
+			r.recycle()
+			r.stateErr = errUnexpectedEOF
 			return n, errUnexpectedEOF // reached EOF but not seen final package yet
 		}
 		if err != nil && err != io.ErrUnexpectedEOF {
+			r.recycle()
+			r.stateErr = err
 			return n, err // reading from src failed or reached EOF
 		}
 		if err = r.Open(r.buffer[headerSize:], r.buffer[:nn]); err != nil {
@@ -217,8 +264,7 @@ func decryptBufferV20(dst, src []byte, config *Config) ([]byte, error) {
 type decReaderAtV20 struct {
 	src io.ReaderAt
 
-	ad      authDecV20
-	bufPool sync.Pool
+	ad authDecV20
 }
 
 // decryptReaderAtV20 returns an io.ReaderAt wrapping the given io.ReaderAt.
@@ -232,12 +278,7 @@ func decryptReaderAtV20(src io.ReaderAt, config *Config) (*decReaderAtV20, error
 		ad:  ad,
 		src: src,
 	}
-	r.bufPool = sync.Pool{
-		New: func() interface{} {
-			b := make([]byte, maxPackageSize)
-			return &b
-		},
-	}
+
 	return r, nil
 }
 
@@ -251,14 +292,13 @@ func (r *decReaderAtV20) ReadAt(p []byte, offset int64) (n int, err error) {
 		return 0, errUnexpectedSize
 	}
 
-	buffer := r.bufPool.Get().(*[]byte)
-	defer r.bufPool.Put(buffer)
 	decReader := decReaderV20{
 		authDecV20: r.ad,
 		src:        &sectionReader{r.src, t * maxPackageSize},
-		buffer:     packageV20(*buffer),
+		buffer:     packageBufferPool.Get().([]byte)[:maxPackageSize],
 		offset:     0,
 	}
+	defer decReader.recycle()
 	decReader.SeqNum = uint32(t)
 	if k := offset % int64(maxPayloadSize); k > 0 {
 		if _, err := io.CopyN(ioutil.Discard, &decReader, k); err != nil {

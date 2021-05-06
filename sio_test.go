@@ -321,7 +321,10 @@ func TestWriter(t *testing.T) {
 				t.Errorf("Version %d: Test %d: Writing failed: %v", version, i, err)
 			}
 			if err := encWriter.Close(); err != nil {
-				t.Errorf("Version %d: Test: %d: Failed to close writer: %v", version, i, err)
+				t.Errorf("Version %d: Test: %d: Failed to close encrypt writer: %v", version, i, err)
+			}
+			if err := decWriter.Close(); err != nil {
+				t.Errorf("Version %d: Test: %d: Failed to close decode writer: %v", version, i, err)
 			}
 			if !bytes.Equal(data, output.Bytes()) {
 				t.Errorf("Version %d: Test: %d: Failed to encrypt and decrypt data", version, i)
@@ -663,19 +666,22 @@ func BenchmarkDecryptWriter_1MB(b *testing.B)   { benchmarkDecryptWrite(1024*102
 
 func benchmarkEncryptRead(size int64, b *testing.B) {
 	data := make([]byte, size)
-	buffer := make([]byte, 32+size*(size/(64*1024)+32))
 	config := Config{Key: make([]byte, 32)}
 	b.SetBytes(size)
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		reader, err := EncryptReader(bytes.NewReader(data), config)
-		if err != nil {
-			b.Fatal(err)
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			reader, err := EncryptReader(bytes.NewReader(data), config)
+			if err != nil {
+				b.Fatal(err)
+			}
+			_, err = io.Copy(ioutil.Discard, reader)
+			if err != nil && err != io.ErrUnexpectedEOF {
+				b.Fatal(err)
+			}
 		}
-		if _, err := io.ReadFull(reader, buffer); err != nil && err != io.ErrUnexpectedEOF {
-			b.Fatal(err)
-		}
-	}
+	})
 }
 
 func benchmarkDecryptRead(size int64, b *testing.B) {
@@ -695,15 +701,19 @@ func benchmarkDecryptRead(size int64, b *testing.B) {
 
 	b.SetBytes(size)
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		reader, err := DecryptReader(bytes.NewReader(encrypted.Bytes()), config)
-		if err != nil {
-			b.Fatal(err)
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			reader, err := DecryptReader(bytes.NewReader(encrypted.Bytes()), config)
+			if err != nil {
+				b.Fatal(err)
+			}
+			_, err = io.Copy(ioutil.Discard, reader)
+			if err != nil && err != io.EOF {
+				b.Fatal(err)
+			}
 		}
-		if _, err := io.ReadFull(reader, data); err != nil && err != io.EOF {
-			b.Fatal(err)
-		}
-	}
+	})
 }
 
 func benchmarkDecryptReadAt(size int64, b *testing.B) {
@@ -723,39 +733,45 @@ func benchmarkDecryptReadAt(size int64, b *testing.B) {
 
 	b.SetBytes(size)
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		reader, err := DecryptReaderAt(bytes.NewReader(encrypted.Bytes()), config)
-		if err != nil {
-			b.Fatal(err)
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		data := make([]byte, size)
+		for pb.Next() {
+			reader, err := DecryptReaderAt(bytes.NewReader(encrypted.Bytes()), config)
+			if err != nil {
+				b.Fatal(err)
+			}
+			if _, err := reader.ReadAt(data[:len(data)/2], 0); err != nil && err != io.EOF {
+				b.Fatal(err)
+			}
+			if _, err := reader.ReadAt(data[len(data)/2:], int64(len(data)/2)); err != nil && err != io.EOF {
+				b.Fatal(err)
+			}
 		}
-		if _, err := reader.ReadAt(data[:len(data)/2], 0); err != nil && err != io.EOF {
-			b.Fatal(err)
-		}
-		if _, err := reader.ReadAt(data[len(data)/2:], int64(len(data)/2)); err != nil && err != io.EOF {
-			b.Fatal(err)
-		}
-
-	}
+	})
 }
 
 func benchmarkEncryptWrite(size int64, b *testing.B) {
 	data := make([]byte, size)
-	buffer := make([]byte, 32+size*(size/(64*1024)+32))
 	config := Config{Key: make([]byte, 32)}
 	b.SetBytes(size)
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		encryptWriter, err := EncryptWriter(bytes.NewBuffer(buffer[:0]), config)
-		if err != nil {
-			b.Fatal(err)
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		buffer := make([]byte, 32+size*(size/(64*1024)+32))
+		for pb.Next() {
+			encryptWriter, err := EncryptWriter(bytes.NewBuffer(buffer[:0]), config)
+			if err != nil {
+				b.Fatal(err)
+			}
+			if _, err = encryptWriter.Write(data); err != nil {
+				b.Fatal(err)
+			}
+			if err = encryptWriter.Close(); err != nil {
+				b.Fatal(err)
+			}
 		}
-		if _, err = encryptWriter.Write(data); err != nil {
-			b.Fatal(err)
-		}
-		if err = encryptWriter.Close(); err != nil {
-			b.Fatal(err)
-		}
-	}
+	})
 }
 
 func benchmarkDecryptWrite(size int64, b *testing.B) {
@@ -775,16 +791,20 @@ func benchmarkDecryptWrite(size int64, b *testing.B) {
 
 	b.SetBytes(size)
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		decryptWriter, err := DecryptWriter(bytes.NewBuffer(data[:0]), config)
-		if err != nil {
-			b.Fatal(err)
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		data := make([]byte, size)
+		for pb.Next() {
+			decryptWriter, err := DecryptWriter(bytes.NewBuffer(data[:0]), config)
+			if err != nil {
+				b.Fatal(err)
+			}
+			if _, err := decryptWriter.Write(encrypted.Bytes()); err != nil {
+				b.Fatal(err)
+			}
+			if err := decryptWriter.Close(); err != nil {
+				b.Fatal(err)
+			}
 		}
-		if _, err := decryptWriter.Write(encrypted.Bytes()); err != nil {
-			b.Fatal(err)
-		}
-		if err := decryptWriter.Close(); err != nil {
-			b.Fatal(err)
-		}
-	}
+	})
 }
