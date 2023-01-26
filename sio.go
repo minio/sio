@@ -25,6 +25,7 @@ import (
 	"io"
 	"runtime"
 
+	"github.com/emmansun/gmsm/sm4"
 	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/sys/cpu"
 )
@@ -41,6 +42,7 @@ const (
 	AES_256_GCM byte = iota
 	// CHACHA20_POLY1305 specifies the cipher suite ChaCha20Poly1305 with 256 bit keys.
 	CHACHA20_POLY1305
+	SM4_128_CCM
 )
 
 // supportsAES indicates whether the CPU provides hardware support for AES-GCM.
@@ -67,9 +69,18 @@ var newAesGcm = func(key []byte) (cipher.AEAD, error) {
 	return cipher.NewGCM(aes256)
 }
 
+var newSm4Gcm = func(key []byte) (cipher.AEAD, error) {
+	sm4, err := sm4.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	return cipher.NewGCM(sm4)
+}
+
 var supportedCiphers = [...]func([]byte) (cipher.AEAD, error){
 	AES_256_GCM:       newAesGcm,
 	CHACHA20_POLY1305: chacha20poly1305.New,
+	SM4_128_CCM:       newSm4Gcm,
 }
 
 var (
@@ -243,7 +254,7 @@ func DecryptReader(src io.Reader, config Config) (io.Reader, error) {
 	if config.MinVersion == Version10 && config.MaxVersion == Version10 {
 		return decryptReaderV10(src, &config)
 	}
-	if config.MinVersion == Version20 && config.MaxVersion == Version20 {
+	if config.MinVersion == Version10 && config.MaxVersion == Version20 {
 		return decryptReaderV20(src, &config)
 	}
 	return decryptReader(src, &config), nil
@@ -304,9 +315,9 @@ func DecryptWriter(dst io.Writer, config Config) (io.WriteCloser, error) {
 
 func defaultCipherSuites() []byte {
 	if supportsAES {
-		return []byte{AES_256_GCM, CHACHA20_POLY1305}
+		return []byte{SM4_128_CCM, AES_256_GCM, CHACHA20_POLY1305}
 	}
-	return []byte{CHACHA20_POLY1305, AES_256_GCM}
+	return []byte{SM4_128_CCM, CHACHA20_POLY1305, AES_256_GCM}
 }
 
 func setConfigDefaults(config *Config) error {
@@ -319,7 +330,7 @@ func setConfigDefaults(config *Config) error {
 	if len(config.Key) != keySize {
 		return errors.New("sio: invalid key size")
 	}
-	if len(config.CipherSuites) > 2 {
+	if len(config.CipherSuites) > 3 {
 		return errors.New("sio: too many cipher suites")
 	}
 	for _, c := range config.CipherSuites {

@@ -19,10 +19,10 @@
 //
 // Usage: ncrypt [FLAGS] [ARGUMENTS...]
 //
-//    -cipher string   Specify cipher - default: platform depended
-//    -d               Decrypt
-//    -list            List supported algorithms
-//    -p      string   Specify the password - default: prompt for password
+//	-cipher string   Specify cipher - default: platform depended
+//	-d               Decrypt
+//	-list            List supported algorithms
+//	-p      string   Specify the password - default: prompt for password
 //
 // Examples:
 //
@@ -104,6 +104,7 @@ func init() {
 var supportedCiphers = map[string]string{
 	"AES256":   "AES-256 GCM",
 	"C20P1305": "ChaCha20 Poly1305",
+	"SM4":      "SM4-128 GCM",
 }
 
 func main() {
@@ -155,6 +156,8 @@ func cipherSuites() []byte {
 		return []byte{sio.AES_256_GCM}
 	case "C20P1305":
 		return []byte{sio.CHACHA20_POLY1305}
+	case "SM4":
+		return []byte{sio.SM4_128_CCM}
 	}
 }
 

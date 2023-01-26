@@ -86,7 +86,7 @@ func TestEncrypt(t *testing.T) {
 	if _, err := io.ReadFull(rand.Reader, key); err != nil {
 		t.Fatalf("Failed to generate random key: %v", err)
 	}
-	config := Config{Key: key}
+	config := Config{Key: key, CipherSuites: []byte{2}}
 	for _, version := range versions {
 		config.MinVersion, config.MaxVersion = version, version
 		for i, test := range ioTests {
@@ -116,7 +116,7 @@ func TestDecryptBuffer(t *testing.T) {
 	if _, err := io.ReadFull(rand.Reader, key); err != nil {
 		t.Fatalf("Failed to generate random key: %v", err)
 	}
-	config := Config{Key: key}
+	config := Config{Key: key, CipherSuites: []byte{2}}
 
 	for _, version := range versions {
 		t.Run(fmt.Sprintf("v-%x", version), func(t *testing.T) {
@@ -174,7 +174,7 @@ func TestDecryptBuffer(t *testing.T) {
 }
 
 func TestReader(t *testing.T) {
-	config := Config{Key: make([]byte, 32)}
+	config := Config{Key: make([]byte, 32), CipherSuites: []byte{2}}
 	for _, version := range versions {
 		config.MinVersion, config.MaxVersion = version, version
 		for i, test := range ioTests {
@@ -227,7 +227,7 @@ func TestReader(t *testing.T) {
 }
 
 func TestReaderAt(t *testing.T) {
-	config := Config{Key: make([]byte, 32)}
+	config := Config{Key: make([]byte, 32), CipherSuites: []byte{2}}
 	plaintext := bytes.NewBuffer(nil)
 	ciphertext := bytes.NewBuffer(nil)
 	for _, version := range versions {
@@ -263,7 +263,7 @@ func TestReaderAt(t *testing.T) {
 }
 
 func TestReaderAtSection(t *testing.T) {
-	config := Config{Key: make([]byte, 32)}
+	config := Config{Key: make([]byte, 32), CipherSuites: []byte{2}}
 	plaintext := bytes.NewBuffer(nil)
 	ciphertext := bytes.NewBuffer(nil)
 	data := append(make([]byte, maxPackageSize), []byte("Hello World")...)
@@ -294,7 +294,7 @@ func TestReaderAtSection(t *testing.T) {
 }
 
 func TestWriter(t *testing.T) {
-	config := Config{Key: make([]byte, 32)}
+	config := Config{Key: make([]byte, 32), CipherSuites: []byte{2}}
 	for _, version := range versions {
 		config.MinVersion, config.MaxVersion = version, version
 		for i, test := range ioTests {
@@ -666,7 +666,7 @@ func BenchmarkDecryptWriter_1MB(b *testing.B)   { benchmarkDecryptWrite(1024*102
 
 func benchmarkEncryptRead(size int64, b *testing.B) {
 	data := make([]byte, size)
-	config := Config{Key: make([]byte, 32)}
+	config := Config{Key: make([]byte, 32), CipherSuites: []byte{2}}
 	b.SetBytes(size)
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -686,7 +686,7 @@ func benchmarkEncryptRead(size int64, b *testing.B) {
 
 func benchmarkDecryptRead(size int64, b *testing.B) {
 	data := make([]byte, size)
-	config := Config{Key: make([]byte, 32)}
+	config := Config{Key: make([]byte, 32), CipherSuites: []byte{2}}
 	encrypted := bytes.NewBuffer(nil)
 	encWriter, err := EncryptWriter(encrypted, config)
 	if err != nil {
@@ -718,7 +718,7 @@ func benchmarkDecryptRead(size int64, b *testing.B) {
 
 func benchmarkDecryptReadAt(size int64, b *testing.B) {
 	data := make([]byte, size)
-	config := Config{Key: make([]byte, 32)}
+	config := Config{Key: make([]byte, 32), CipherSuites: []byte{2}}
 	encrypted := bytes.NewBuffer(nil)
 	encWriter, err := EncryptWriter(encrypted, config)
 	if err != nil {
@@ -753,7 +753,7 @@ func benchmarkDecryptReadAt(size int64, b *testing.B) {
 
 func benchmarkEncryptWrite(size int64, b *testing.B) {
 	data := make([]byte, size)
-	config := Config{Key: make([]byte, 32)}
+	config := Config{Key: make([]byte, 32), CipherSuites: []byte{2}}
 	b.SetBytes(size)
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -776,7 +776,7 @@ func benchmarkEncryptWrite(size int64, b *testing.B) {
 
 func benchmarkDecryptWrite(size int64, b *testing.B) {
 	data := make([]byte, size)
-	config := Config{Key: make([]byte, 32)}
+	config := Config{Key: make([]byte, 32), CipherSuites: []byte{2}}
 	encrypted := bytes.NewBuffer(nil)
 	encWriter, err := EncryptWriter(encrypted, config)
 	if err != nil {

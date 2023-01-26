@@ -78,7 +78,7 @@ type authEnc struct {
 
 type authDec struct {
 	SeqNum  uint32
-	Ciphers [2]cipher.AEAD
+	Ciphers [3]cipher.AEAD
 }
 
 type authEncV10 authEnc
@@ -115,7 +115,7 @@ func (ae *authEncV10) Seal(dst, src []byte) {
 type authDecV10 authDec
 
 func newAuthDecV10(cfg *Config) (authDecV10, error) {
-	var ciphers [2]cipher.AEAD
+	var ciphers [3]cipher.AEAD
 	for _, v := range cfg.CipherSuites {
 		aeadCipher, err := supportedCiphers[v](cfg.Key)
 		if err != nil {
@@ -134,7 +134,7 @@ func (ad *authDecV10) Open(dst, src []byte) error {
 	if header.Version() != Version10 {
 		return errUnsupportedVersion
 	}
-	if header.Cipher() > CHACHA20_POLY1305 {
+	if header.Cipher() > SM4_128_CCM {
 		return errUnsupportedCipher
 	}
 	aeadCipher := ad.Ciphers[header.Cipher()]
@@ -162,7 +162,7 @@ type authEncV20 struct {
 
 func newAuthEncV20(cfg *Config) (authEncV20, error) {
 	cipherID := cfg.CipherSuites[0]
-	cipher, err := supportedCiphers[cipherID](cfg.Key)
+	cipher, err := supportedCiphers[cipherID](cfg.Key[:16])
 	if err != nil {
 		return authEncV20{}, err
 	}
@@ -210,9 +210,17 @@ type authDecV20 struct {
 }
 
 func newAuthDecV20(cfg *Config) (authDecV20, error) {
-	var ciphers [2]cipher.AEAD
+	var ciphers [3]cipher.AEAD
+	var aeadCipher cipher.AEAD
+	var err error
+
 	for _, v := range cfg.CipherSuites {
-		aeadCipher, err := supportedCiphers[v](cfg.Key)
+		if v == SM4_128_CCM {
+			aeadCipher, err = supportedCiphers[v](cfg.Key[:16])
+		} else {
+			aeadCipher, err = supportedCiphers[v](cfg.Key)
+		}
+
 		if err != nil {
 			return authDecV20{}, err
 		}
@@ -242,7 +250,7 @@ func (ad *authDecV20) Open(dst, src []byte) error {
 	if header.Version() != Version20 {
 		return errUnsupportedVersion
 	}
-	if c := header.Cipher(); c > CHACHA20_POLY1305 || ad.Ciphers[c] == nil || c != ad.refHeader.Cipher() {
+	if c := header.Cipher(); c > SM4_128_CCM || ad.Ciphers[c] == nil || c != ad.refHeader.Cipher() {
 		return errUnsupportedCipher
 	}
 	if headerSize+header.Length()+tagSize != len(src) {
