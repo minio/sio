@@ -80,6 +80,18 @@ func (w *encWriterV20) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
+func (w *encWriterV20) Flush() error {
+	if w.offset > 0 {
+		w.Seal(w.buffer, w.buffer[headerSize:headerSize+w.offset])
+		if err := flush(w.dst, w.buffer[:headerSize+w.offset]); err != nil { // write to underlying io.Writer
+			return err
+		}
+		w.offset = 0
+	}
+
+	return nil
+}
+
 func (w *encWriterV20) Close() (err error) {
 	if w.buffer == nil {
 		return w.closeErr
