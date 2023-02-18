@@ -1,7 +1,4 @@
 linters-settings:
-  golint:
-    min-confidence: 0
-
   misspell:
     locale: US
 
@@ -12,14 +9,13 @@ linters:
     - goimports
     - misspell
     - govet
-    - golint
+    - revive
     - ineffassign
     - gosimple
-    - deadcode
     - unused
-    - structcheck
     - prealloc
     - unconvert
+    - gofumpt
 
 issues:
   exclude-use-default: false
@@ -28,4 +24,4 @@ issues:
       - error strings should not be capitalized or end with punctuation or a newline
       - don't use ALL_CAPS in Go names
 service:
-  golangci-lint-version: 1.33.0 # use the fixed version to not introduce new linters unexpectedly
+  golangci-lint-version: 1.51.0 # use the fixed version to not introduce new linters unexpectedly
