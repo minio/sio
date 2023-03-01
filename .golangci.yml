@@ -12,14 +12,12 @@ linters:
     - goimports
     - misspell
     - govet
-    - golint
     - ineffassign
     - gosimple
-    - deadcode
     - unused
-    - structcheck
     - prealloc
     - unconvert
+    - revive
 
 issues:
   exclude-use-default: false

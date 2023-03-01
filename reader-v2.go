@@ -17,7 +17,6 @@ package sio
 import (
 	"errors"
 	"io"
-	"io/ioutil"
 	"sync"
 )
 
@@ -291,6 +290,11 @@ func (r *decReaderAtV20) ReadAt(p []byte, offset int64) (n int, err error) {
 	if t+1 > (1<<32)-1 {
 		return 0, errUnexpectedSize
 	}
+	k := offset % int64(maxPayloadSize)
+	if offset > 0 && k == 0 {
+		k = maxPayloadSize
+		t--
+	}
 
 	decReader := decReaderV20{
 		authDecV20: r.ad,
@@ -300,8 +304,8 @@ func (r *decReaderAtV20) ReadAt(p []byte, offset int64) (n int, err error) {
 	}
 	defer decReader.recycle()
 	decReader.SeqNum = uint32(t)
-	if k := offset % int64(maxPayloadSize); k > 0 {
-		if _, err := io.CopyN(ioutil.Discard, &decReader, k); err != nil {
+	if k > 0 {
+		if _, err := io.CopyN(io.Discard, &decReader, k); err != nil {
 			return 0, err
 		}
 	}
