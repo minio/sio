@@ -35,10 +35,14 @@ func decryptWriterV10(dst io.Writer, config *Config) (*decWriterV10, error) {
 	if err != nil {
 		return nil, err
 	}
+	buf := packageBufferPool.Get().([]byte)[:maxPackageSize]
+	for i := range buf {
+		buf[i] = 0
+	}
 	return &decWriterV10{
 		authDecV10: ad,
 		dst:        dst,
-		buffer:     packageBufferPool.Get().([]byte)[:maxPackageSize],
+		buffer:     buf,
 	}, nil
 }
 
