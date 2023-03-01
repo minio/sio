@@ -17,7 +17,6 @@ package sio
 import (
 	"errors"
 	"io"
-	"io/ioutil"
 )
 
 type encReaderV10 struct {
@@ -237,7 +236,7 @@ func (r *decReaderAtV10) ReadAt(p []byte, offset int64) (n int, err error) {
 	}
 	decReader.SeqNum = uint32(t)
 	if k := offset % int64(maxPayloadSize); k > 0 {
-		if _, err := io.CopyN(ioutil.Discard, &decReader, k); err != nil {
+		if _, err := io.CopyN(io.Discard, &decReader, k); err != nil {
 			return 0, err
 		}
 	}

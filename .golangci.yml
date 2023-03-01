@@ -15,7 +15,6 @@ linters:
     - golint
     - ineffassign
     - gosimple
-    - deadcode
     - unused
     - structcheck
     - prealloc
