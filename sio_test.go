@@ -20,7 +20,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -439,7 +438,7 @@ func TestVerifySequenceNumbers(t *testing.T) {
 }
 
 func testFile(t *testing.T, file string) {
-	data, err := ioutil.ReadFile(file)
+	data, err := os.ReadFile(file)
 	if err != nil {
 		t.Errorf("Failed to read file: %s - %v", file, err)
 	}
