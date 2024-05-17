@@ -44,7 +44,7 @@ import (
 
 	"github.com/minio/sio"
 	"golang.org/x/crypto/scrypt"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 const (
@@ -172,7 +172,7 @@ func parseIOArgs() (*os.File, *os.File) {
 			fmt.Fprintf(os.Stderr, "Failed to open '%s': %v\n", args[0], err)
 			exit(codeError)
 		}
-		cleanFn = append(cleanFn, func(code int) { in.Close() })
+		cleanFn = append(cleanFn, func(_ int) { in.Close() })
 		return in, os.Stdout
 	case 2:
 		in, err := os.Open(args[0])
@@ -196,21 +196,21 @@ func parseIOArgs() (*os.File, *os.File) {
 }
 
 func readPassword(src *os.File) []byte {
-	state, err := terminal.GetState(int(src.Fd()))
+	state, err := term.GetState(int(src.Fd()))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Failed to read password:", err)
 		exit(codeError)
 	}
 	cleanFn = append(cleanFn, func(code int) {
-		stat, _ := terminal.GetState(int(src.Fd()))
+		stat, _ := term.GetState(int(src.Fd()))
 		if code == codeCancel && stat != nil && *stat != *state {
 			fmt.Fprintln(src, "\nFailed to read password: Interrupted")
 		}
-		terminal.Restore(int(src.Fd()), state)
+		term.Restore(int(src.Fd()), state)
 	})
 
 	fmt.Fprint(src, "Enter password:")
-	password, err := terminal.ReadPassword(int(src.Fd()))
+	password, err := term.ReadPassword(int(src.Fd()))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Failed to read password:", err)
 		exit(codeError)
@@ -228,11 +228,12 @@ func deriveKey(dst, src *os.File) []byte {
 		password []byte
 		salt     = make([]byte, 32)
 	)
-	if passwordFlag != "" {
+	switch {
+	case passwordFlag != "":
 		password = []byte(passwordFlag)
-	} else if src == os.Stdin {
+	case src == os.Stdin:
 		password = readPassword(os.Stderr)
-	} else {
+	default:
 		password = readPassword(os.Stdin)
 	}
 	if decryptFlag {

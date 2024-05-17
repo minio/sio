@@ -119,11 +119,9 @@ func TestDecryptBuffer(t *testing.T) {
 
 	for _, version := range versions {
 		t.Run(fmt.Sprintf("v-%x", version), func(t *testing.T) {
-
 			config.MinVersion, config.MaxVersion = version, version
 			for i, test := range ioTests {
 				t.Run(fmt.Sprintf("test-%d", i), func(t *testing.T) {
-
 					data := make([]byte, test.datasize)
 					if _, err := io.ReadFull(rand.Reader, data); err != nil {
 						t.Fatalf("Version %d: Test %d: Failed to generate random data: %v", version, i, err)
@@ -468,7 +466,7 @@ func testFile(t *testing.T, file string) {
 
 func TestFiles(t *testing.T) {
 	fileList := []string{}
-	err := filepath.Walk(".", func(path string, f os.FileInfo, err error) error {
+	err := filepath.Walk(".", func(path string, f os.FileInfo, _ error) error {
 		if !f.IsDir() {
 			fileList = append(fileList, path)
 		}
