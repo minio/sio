@@ -60,6 +60,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run tests
+        run: go test -v -race ./...
+
+      - name: Run tests with coverage (Linux only)
+        if: matrix.os == 'ubuntu-latest'
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Upload coverage to Codecov
