@@ -38,7 +38,7 @@ func TestSealV10(t *testing.T) {
 			MinVersion:     Version10,
 			MaxVersion:     Version10,
 			Key:            key,
-			SequenceNumber: uint32(i),
+			SequenceNumber: uint32(i), //nolint:gosec // Test loop counter
 			Rand:           bytes.NewReader(randValue),
 			PayloadSize:    maxPayloadSize,
 		}
@@ -71,7 +71,7 @@ func TestOpenV10(t *testing.T) {
 			MaxVersion:     Version10,
 			CipherSuites:   []byte{AES_256_GCM, CHACHA20_POLY1305},
 			Key:            key,
-			SequenceNumber: uint32(i),
+			SequenceNumber: uint32(i), //nolint:gosec // Test loop counter
 			Rand:           rand.Reader,
 			PayloadSize:    maxPayloadSize,
 		}
@@ -99,7 +99,7 @@ func TestOpenV10(t *testing.T) {
 			MinVersion:     Version10,
 			MaxVersion:     Version10,
 			Key:            key,
-			SequenceNumber: uint32(i),
+			SequenceNumber: uint32(i), //nolint:gosec // Test loop counter
 			Rand:           rand.Reader,
 		}
 		ciphertext, err := hex.DecodeString(test)
@@ -127,7 +127,7 @@ func TestSealV20(t *testing.T) {
 			MinVersion:     Version20,
 			MaxVersion:     Version20,
 			Key:            key,
-			SequenceNumber: uint32(i),
+			SequenceNumber: uint32(i), //nolint:gosec // Test loop counter
 			Rand:           bytes.NewReader(randValue),
 			PayloadSize:    maxPayloadSize,
 		}
@@ -144,7 +144,9 @@ func TestSealV20(t *testing.T) {
 
 		plaintext := make([]byte, len(ciphertext)-32)
 		encrypted := make([]byte, len(ciphertext))
-		ad.SealFinal(encrypted, plaintext)
+		if err := ad.SealFinal(encrypted, plaintext); err != nil {
+			t.Errorf("Test %d: failed to seal: %v", i, err)
+		}
 		if !bytes.Equal(encrypted, ciphertext) {
 			t.Errorf("Test %d: ciphertext mismatch", i)
 		}
@@ -160,7 +162,7 @@ func TestOpenV20(t *testing.T) {
 			MaxVersion:     Version20,
 			CipherSuites:   []byte{AES_256_GCM, CHACHA20_POLY1305},
 			Key:            key,
-			SequenceNumber: uint32(i),
+			SequenceNumber: uint32(i), //nolint:gosec // Test loop counter
 			Rand:           rand.Reader,
 		}
 		ciphertext, err := hex.DecodeString(test)
@@ -188,7 +190,7 @@ func TestOpenV20(t *testing.T) {
 			MaxVersion:     Version20,
 			CipherSuites:   []byte{AES_256_GCM, CHACHA20_POLY1305},
 			Key:            key,
-			SequenceNumber: uint32(i),
+			SequenceNumber: uint32(i), //nolint:gosec // Test loop counter
 			Rand:           rand.Reader,
 		}
 		ciphertext, err := hex.DecodeString(test)

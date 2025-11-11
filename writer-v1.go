@@ -113,7 +113,7 @@ func (w *decWriterV10) Close() (err error) {
 
 	if w.closeErr != nil {
 		if dst, ok := w.dst.(io.Closer); ok {
-			dst.Close()
+			_ = dst.Close()
 		}
 		return w.closeErr
 	}
@@ -217,7 +217,7 @@ func (w *encWriterV10) Close() (err error) {
 
 	if w.closeErr != nil {
 		if dst, ok := w.dst.(io.Closer); ok {
-			dst.Close()
+			_ = dst.Close()
 		}
 		return w.closeErr
 	}

@@ -438,7 +438,7 @@ func TestVerifySequenceNumbers(t *testing.T) {
 }
 
 func testFile(t *testing.T, file string) {
-	data, err := os.ReadFile(file)
+	data, err := os.ReadFile(file) //nolint:gosec // Test file
 	if err != nil {
 		t.Errorf("Failed to read file: %s - %v", file, err)
 	}

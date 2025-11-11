@@ -27,6 +27,7 @@ linters:
       checks:
         - all
         - -SA6002
+        - -ST1003
   exclusions:
     generated: lax
     rules:

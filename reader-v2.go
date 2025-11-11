@@ -318,7 +318,7 @@ func (r *decReaderAtV20) ReadAt(p []byte, offset int64) (n int, err error) {
 		recycle:    recycle,
 		offset:     0,
 	}
-	decReader.SeqNum = uint32(t)
+	decReader.SeqNum = uint32(t) //nolint:gosec // Safe conversion
 	if k > 0 {
 		if _, err := io.CopyN(io.Discard, &decReader, k); err != nil {
 			return 0, err

@@ -69,12 +69,16 @@ func FuzzEncryptDecrypt(f *testing.F) {
 func FuzzDecryptMalformed(f *testing.F) {
 	// Add seed corpus with valid encrypted data
 	key := make([]byte, 32)
-	io.ReadFull(rand.Reader, key)
+	if _, err := io.ReadFull(rand.Reader, key); err != nil {
+		f.Fatal(err)
+	}
 
 	config := Config{Key: key}
 
 	var encrypted bytes.Buffer
-	Encrypt(&encrypted, bytes.NewReader([]byte("test data")), config)
+	if _, err := Encrypt(&encrypted, bytes.NewReader([]byte("test data")), config); err != nil {
+		f.Fatal(err)
+	}
 
 	f.Add(encrypted.Bytes())
 	f.Add([]byte{0x10}) // Just a version byte
@@ -87,6 +91,7 @@ func FuzzDecryptMalformed(f *testing.F) {
 		config := Config{Key: key}
 
 		// We expect this to fail gracefully, not panic
+		// nolint:errcheck // Intentionally ignoring errors in fuzz test
 		Decrypt(&decrypted, bytes.NewReader(data), config)
 		// Don't check error - we expect most random data to fail
 		// The important thing is that it doesn't panic or crash
@@ -96,13 +101,17 @@ func FuzzDecryptMalformed(f *testing.F) {
 // FuzzDecryptBuffer tests DecryptBuffer with various inputs
 func FuzzDecryptBuffer(f *testing.F) {
 	key := make([]byte, 32)
-	io.ReadFull(rand.Reader, key)
+	if _, err := io.ReadFull(rand.Reader, key); err != nil {
+		f.Fatal(err)
+	}
 
 	config := Config{Key: key}
 
 	// Create valid encrypted data
 	var encrypted bytes.Buffer
-	Encrypt(&encrypted, bytes.NewReader([]byte("sample data for buffer decryption")), config)
+	if _, err := Encrypt(&encrypted, bytes.NewReader([]byte("sample data for buffer decryption")), config); err != nil {
+		f.Fatal(err)
+	}
 
 	f.Add(encrypted.Bytes())
 
@@ -111,6 +120,7 @@ func FuzzDecryptBuffer(f *testing.F) {
 		dst := make([]byte, 0, len(data))
 
 		// Should not panic
+		// nolint:errcheck // Intentionally ignoring errors in fuzz test
 		DecryptBuffer(dst, data, config)
 	})
 }
@@ -122,7 +132,9 @@ func FuzzReaderWriter(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		key := make([]byte, 32)
-		io.ReadFull(rand.Reader, key)
+		if _, err := io.ReadFull(rand.Reader, key); err != nil {
+			t.Fatal(err)
+		}
 
 		config := Config{Key: key}
 
