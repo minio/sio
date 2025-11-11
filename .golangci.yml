@@ -1,20 +1,6 @@
-run:
-  timeout: 5m
-
-linters-settings:
-  misspell:
-    locale: US
-  staticcheck:
-    checks: ["all", "-SA6002"]
-  revive:
-    rules:
-      - name: package-comments
-        disabled: true
-      - name: error-strings
-        disabled: true
-
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
     - durationcheck
     - errcheck
@@ -28,10 +14,33 @@ linters:
     - staticcheck
     - unconvert
     - unused
-
-issues:
-  exclude-use-default: false
-  exclude-rules:
-    - text: "don't use ALL_CAPS in Go names"
-      linters:
-        - revive
+  settings:
+    misspell:
+      locale: US
+    revive:
+      rules:
+        - name: package-comments
+          disabled: true
+        - name: error-strings
+          disabled: true
+    staticcheck:
+      checks:
+        - all
+        - -SA6002
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - revive
+        text: don't use ALL_CAPS in Go names
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
