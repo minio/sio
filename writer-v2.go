@@ -52,7 +52,7 @@ func (w *encWriterV20) Write(p []byte) (n int, err error) {
 	if w.finalized {
 		// The caller closed the encWriterV20 instance (called encWriterV20.Close()).
 		// This is a bug in the calling code - Write after Close is not allowed.
-		panic("sio: write to stream after close")
+		return 0, errWriteAfterClose
 	}
 	if w.offset > 0 { // buffer the plaintext data
 		remaining := maxPayloadSize - w.offset
@@ -61,7 +61,11 @@ func (w *encWriterV20) Write(p []byte) (n int, err error) {
 			return len(p), nil
 		}
 		n = copy(w.buffer[headerSize+w.offset:], p[:remaining])
-		w.Seal(w.buffer, w.buffer[headerSize:headerSize+maxPayloadSize])
+		if err = w.Seal(w.buffer, w.buffer[headerSize:headerSize+maxPayloadSize]); err != nil {
+			w.recycle()
+			w.closeErr = err
+			return n, err
+		}
 		if err = flush(w.dst, w.buffer); err != nil { // write to underlying io.Writer
 			w.recycle()
 			w.closeErr = err
@@ -71,7 +75,11 @@ func (w *encWriterV20) Write(p []byte) (n int, err error) {
 		w.offset = 0
 	}
 	for len(p) > maxPayloadSize { // > is important here to call Seal (not SealFinal) only if there is at least on package left - see: Close()
-		w.Seal(w.buffer, p[:maxPayloadSize])
+		if err = w.Seal(w.buffer, p[:maxPayloadSize]); err != nil {
+			w.recycle()
+			w.closeErr = err
+			return n, err
+		}
 		if err = flush(w.dst, w.buffer); err != nil { // write to underlying io.Writer
 			w.recycle()
 			w.closeErr = err
@@ -98,8 +106,11 @@ func (w *encWriterV20) Close() (err error) {
 	}
 
 	if w.offset > 0 { // true if at least one Write call happened
-		w.SealFinal(w.buffer, w.buffer[headerSize:headerSize+w.offset])
-		w.closeErr = flush(w.dst, w.buffer[:headerSize+w.offset+tagSize]) // write to underlying io.Writer
+		if err := w.SealFinal(w.buffer, w.buffer[headerSize:headerSize+w.offset]); err != nil {
+			w.closeErr = err
+		} else {
+			w.closeErr = flush(w.dst, w.buffer[:headerSize+w.offset+tagSize]) // write to underlying io.Writer
+		}
 		w.offset = 0
 	}
 	if closer, ok := w.dst.(io.Closer); ok {

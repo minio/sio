@@ -184,12 +184,12 @@ func newAuthEncV20(cfg *Config) (authEncV20, error) {
 	}, nil
 }
 
-func (ae *authEncV20) Seal(dst, src []byte)      { ae.seal(dst, src, false) }
-func (ae *authEncV20) SealFinal(dst, src []byte) { ae.seal(dst, src, true) }
+func (ae *authEncV20) Seal(dst, src []byte) error      { return ae.seal(dst, src, false) }
+func (ae *authEncV20) SealFinal(dst, src []byte) error { return ae.seal(dst, src, true) }
 
-func (ae *authEncV20) seal(dst, src []byte, finalize bool) {
+func (ae *authEncV20) seal(dst, src []byte, finalize bool) error {
 	if ae.finalized { // callers are not supposed to call Seal(Final) after a SealFinal call happened
-		panic("sio: cannot seal any package after final one")
+		return errSealAfterFinal
 	}
 	ae.finalized = finalize
 
@@ -205,6 +205,7 @@ func (ae *authEncV20) seal(dst, src []byte, finalize bool) {
 
 	ae.Cipher.Seal(dst[headerSize:headerSize], nonce[:], src, header.AddData())
 	ae.SeqNum++
+	return nil
 }
 
 type authDecV20 struct {

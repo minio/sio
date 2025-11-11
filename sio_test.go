@@ -532,7 +532,7 @@ type devNull struct{ zero [8 * 1024]byte }
 func (r *devNull) Read(p []byte) (n int, err error) {
 	if len(p) < len(r.zero) {
 		n = copy(p, r.zero[:len(p)])
-		return
+		return n, err
 	}
 	for len(p) >= len(r.zero) {
 		n += copy(p, r.zero[:])
@@ -541,7 +541,7 @@ func (r *devNull) Read(p []byte) (n int, err error) {
 	if len(p) > 0 {
 		n += copy(p, r.zero[:len(p)])
 	}
-	return
+	return n, err
 }
 
 func TestLargeStream(t *testing.T) {

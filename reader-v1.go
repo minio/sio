@@ -128,7 +128,7 @@ func (r *decReaderV10) Read(p []byte) (n int, err error) {
 		if len(p) < remaining {
 			n = copy(p, payload[r.offset:+r.offset+len(p)])
 			r.offset += n
-			return
+			return n, err
 		}
 		n = copy(p, payload[r.offset:r.offset+remaining])
 		p = p[remaining:]
