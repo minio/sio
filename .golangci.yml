@@ -1,8 +1,17 @@
+run:
+  timeout: 5m
+
 linters-settings:
   misspell:
     locale: US
   staticcheck:
     checks: ["all", "-SA6002"]
+  revive:
+    rules:
+      - name: package-comments
+        disabled: true
+      - name: error-strings
+        disabled: true
 
 linters:
   disable-all: true
@@ -22,7 +31,7 @@ linters:
 
 issues:
   exclude-use-default: false
-  exclude:
-    - should have a package comment
-    - "error strings should not be capitalized or end with punctuation or a newline"
-    - "don't use ALL_CAPS in Go names"
+  exclude-rules:
+    - text: "don't use ALL_CAPS in Go names"
+      linters:
+        - revive
