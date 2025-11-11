@@ -169,7 +169,7 @@ func FuzzPackageBoundaries(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, size int) {
 		// Limit size to avoid excessive memory usage
-		if size < 0 || size > 10*1024*1024 {
+		if size < 0 || size > 10<<20 {
 			t.Skip()
 		}
 

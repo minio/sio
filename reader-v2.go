@@ -43,12 +43,8 @@ var packageBufferPool = sync.Pool{
 func getBuffer() ([]byte, func()) {
 	p := packageBufferPool.Get().(*[]byte)
 	return *p, sync.OnceFunc(func() {
-		// Defense-in-depth: explicitly zero buffer to prevent key material leakage
-		// clear() is used first (compiler optimized), followed by explicit zeroing
-		clear(*p)
-		for i := range *p {
-			(*p)[i] = 0
-		}
+		toZero := *p
+		clear(toZero[:cap(toZero)])
 		packageBufferPool.Put(p)
 	})
 }
