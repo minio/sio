@@ -136,9 +136,9 @@ func printCiphers() {
 	}
 	sort.Strings(ciphers)
 
-	fmt.Fprintln(os.Stdout, "Supported ciphers:")
+	_, _ = fmt.Fprintln(os.Stdout, "Supported ciphers:")
 	for _, c := range ciphers {
-		fmt.Fprintf(os.Stdout, "\t%-8s : %s\n", c, supportedCiphers[c])
+		_, _ = fmt.Fprintf(os.Stdout, "\t%-8s : %s\n", c, supportedCiphers[c])
 	}
 	exit(codeOK)
 }
@@ -172,7 +172,7 @@ func parseIOArgs() (*os.File, *os.File) {
 			fmt.Fprintf(os.Stderr, "Failed to open '%s': %v\n", args[0], err)
 			exit(codeError)
 		}
-		cleanFn = append(cleanFn, func(_ int) { in.Close() })
+		cleanFn = append(cleanFn, func(_ int) { _ = in.Close() })
 		return in, os.Stdout
 	case 2:
 		in, err := os.Open(args[0])
@@ -186,9 +186,9 @@ func parseIOArgs() (*os.File, *os.File) {
 			exit(codeError)
 		}
 		cleanFn = append(cleanFn, func(code int) {
-			out.Close()
+			_ = out.Close()
 			if code != codeOK { // remove file on error
-				os.Remove(out.Name())
+				_ = os.Remove(out.Name())
 			}
 		})
 		return in, out
@@ -204,18 +204,18 @@ func readPassword(src *os.File) []byte {
 	cleanFn = append(cleanFn, func(code int) {
 		stat, _ := term.GetState(int(src.Fd()))
 		if code == codeCancel && stat != nil && *stat != *state {
-			fmt.Fprintln(src, "\nFailed to read password: Interrupted")
+			_, _ = fmt.Fprintln(src, "\nFailed to read password: Interrupted")
 		}
-		term.Restore(int(src.Fd()), state)
+		_ = term.Restore(int(src.Fd()), state)
 	})
 
-	fmt.Fprint(src, "Enter password:")
+	_, _ = fmt.Fprint(src, "Enter password:")
 	password, err := term.ReadPassword(int(src.Fd()))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Failed to read password:", err)
 		exit(codeError)
 	}
-	fmt.Fprintln(src, "")
+	_, _ = fmt.Fprintln(src, "")
 	if len(password) == 0 {
 		fmt.Fprintln(os.Stderr, "Failed to read password: No password")
 		exit(codeError)

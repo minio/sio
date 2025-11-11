@@ -516,7 +516,7 @@ func TestAppending(t *testing.T) {
 			if _, err := Encrypt(dst, bytes.NewReader(data), config); err != nil {
 				t.Fatalf("Test %d: Failed to encrypt %d part: %v", i, j, err)
 			}
-			config.SequenceNumber += uint32(test.datasize / maxPayloadSize)
+			config.SequenceNumber += uint32(test.datasize / maxPayloadSize) //nolint:gosec // Test data size conversion
 			if test.datasize%maxPayloadSize > 0 {
 				config.SequenceNumber++
 			}

@@ -91,7 +91,7 @@ func FuzzDecryptMalformed(f *testing.F) {
 		config := Config{Key: key}
 
 		// We expect this to fail gracefully, not panic
-		// nolint:errcheck // Intentionally ignoring errors in fuzz test
+		//nolint:errcheck,gosec // Intentionally ignoring errors in fuzz test
 		Decrypt(&decrypted, bytes.NewReader(data), config)
 		// Don't check error - we expect most random data to fail
 		// The important thing is that it doesn't panic or crash
@@ -120,7 +120,7 @@ func FuzzDecryptBuffer(f *testing.F) {
 		dst := make([]byte, 0, len(data))
 
 		// Should not panic
-		// nolint:errcheck // Intentionally ignoring errors in fuzz test
+		//nolint:errcheck,gosec // Intentionally ignoring errors in fuzz test
 		DecryptBuffer(dst, data, config)
 	})
 }
@@ -186,10 +186,14 @@ func FuzzPackageBoundaries(f *testing.F) {
 		}
 
 		data := make([]byte, size)
-		io.ReadFull(rand.Reader, data)
+		if _, err := io.ReadFull(rand.Reader, data); err != nil {
+			t.Fatal(err)
+		}
 
 		key := make([]byte, 32)
-		io.ReadFull(rand.Reader, key)
+		if _, err := io.ReadFull(rand.Reader, key); err != nil {
+			t.Fatal(err)
+		}
 
 		config := Config{Key: key}
 
