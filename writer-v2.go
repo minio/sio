@@ -49,6 +49,9 @@ func encryptWriterV20(dst io.Writer, config *Config) (*encWriterV20, error) {
 }
 
 func (w *encWriterV20) Write(p []byte) (n int, err error) {
+	if w.closeErr != nil {
+		return 0, w.closeErr
+	}
 	if w.finalized {
 		// The caller closed the encWriterV20 instance (called encWriterV20.Close()).
 		// This is a bug in the calling code - Write after Close is not allowed.
@@ -151,6 +154,9 @@ func decryptWriterV20(dst io.Writer, config *Config) (*decWriterV20, error) {
 }
 
 func (w *decWriterV20) Write(p []byte) (n int, err error) {
+	if w.closeErr != nil {
+		return 0, w.closeErr
+	}
 	if w.offset > 0 { // buffer package
 		remaining := headerSize + maxPayloadSize + tagSize - w.offset
 		if len(p) < remaining {

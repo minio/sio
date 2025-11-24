@@ -49,6 +49,9 @@ func decryptWriterV10(dst io.Writer, config *Config) (*decWriterV10, error) {
 }
 
 func (w *decWriterV10) Write(p []byte) (n int, err error) {
+	if w.closeErr != nil {
+		return 0, w.closeErr
+	}
 	if w.offset > 0 && w.offset < headerSize { // buffer the header -> special code b/c we don't know when to decrypt without header
 		remaining := headerSize - w.offset
 		if len(p) < remaining {
@@ -178,6 +181,9 @@ func encryptWriterV10(dst io.Writer, config *Config) (*encWriterV10, error) {
 }
 
 func (w *encWriterV10) Write(p []byte) (n int, err error) {
+	if w.closeErr != nil {
+		return 0, w.closeErr
+	}
 	if w.offset > 0 { // buffer the plaintext
 		remaining := w.payloadSize - w.offset
 		if len(p) < remaining {
