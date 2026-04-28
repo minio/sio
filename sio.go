@@ -38,8 +38,8 @@ const (
 )
 
 const (
-	// AES_256_GCM specifies the cipher suite AES-GCM with 256 bit keys.
-	AES_256_GCM byte = iota
+	// AES_GCM specifies the cipher suite AES-GCM with 128 or 256 bit keys.
+	AES_GCM byte = iota
 	// CHACHA20_POLY1305 specifies the cipher suite ChaCha20Poly1305 with 256 bit keys.
 	CHACHA20_POLY1305
 )
@@ -66,8 +66,6 @@ func detectAESSupport() bool {
 }
 
 const (
-	keySize = 32
-
 	headerSize     = 16
 	maxPayloadSize = 1 << 16
 	tagSize        = 16
@@ -77,17 +75,32 @@ const (
 	maxEncryptedSize = maxDecryptedSize + ((headerSize + tagSize) * 1 << 32)
 )
 
-var newAesGcm = func(key []byte) (cipher.AEAD, error) {
-	aes256, err := aes.NewCipher(key)
+var newAES = func(key []byte) (cipher.AEAD, error) {
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
-	return cipher.NewGCM(aes256)
+	return cipher.NewGCM(block)
+}
+
+var newChaCha20 = func(key []byte) (cipher.AEAD, error) {
+	// ChaCha20 requires 256 bit keys. When a 128 bit key K128 is
+	// provided, we expand it to a 256 bit key K256 = K128 | K128.
+	// This is acceptable for ChaCha20 since it has no other requirements
+	// on its key apart from being 256 bit long and unknown to resp.
+	// unpredictable for an adversary.
+	if len(key) == 128/8 {
+		k := make([]byte, 0, 256/8)
+		k = append(k, key...)
+		k = append(k, key...)
+		key = k
+	}
+	return chacha20poly1305.New(key)
 }
 
 var supportedCiphers = [...]func([]byte) (cipher.AEAD, error){
-	AES_256_GCM:       newAesGcm,
-	CHACHA20_POLY1305: chacha20poly1305.New,
+	AES_GCM:           newAES,
+	CHACHA20_POLY1305: newChaCha20,
 }
 
 var (
@@ -336,9 +349,9 @@ func DecryptWriter(dst io.Writer, config Config) (io.WriteCloser, error) {
 
 func defaultCipherSuites() []byte {
 	if supportsAES {
-		return []byte{AES_256_GCM, CHACHA20_POLY1305}
+		return []byte{AES_GCM, CHACHA20_POLY1305}
 	}
-	return []byte{CHACHA20_POLY1305, AES_256_GCM}
+	return []byte{CHACHA20_POLY1305, AES_GCM}
 }
 
 func setConfigDefaults(config *Config) error {
@@ -348,7 +361,7 @@ func setConfigDefaults(config *Config) error {
 	if config.MaxVersion > Version20 {
 		return errors.New("sio: unknown maximum version")
 	}
-	if len(config.Key) != keySize {
+	if len(config.Key) != 128/8 && len(config.Key) != 256/8 {
 		return errors.New("sio: invalid key size")
 	}
 	if len(config.CipherSuites) > 2 {

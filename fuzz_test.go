@@ -39,7 +39,7 @@ func FuzzEncryptDecrypt(f *testing.F) {
 		}
 
 		// Test both cipher suites
-		for _, cipher := range []byte{AES_256_GCM, CHACHA20_POLY1305} {
+		for _, cipher := range []byte{AES_GCM, CHACHA20_POLY1305} {
 			config := Config{
 				Key:          key[:],
 				CipherSuites: []byte{cipher},

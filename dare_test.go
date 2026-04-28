@@ -30,6 +30,44 @@ func isZero(p []byte) bool {
 	return true
 }
 
+func TestSealOpen(t *testing.T) {
+	key128, _ := hex.DecodeString("000102030405060708090a0b0c0d0e0f")
+	key256, _ := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+	randValue, _ := hex.DecodeString("0001020304050607")
+
+	for _, maxVersion := range []byte{Version10, Version20} {
+		for _, key := range [][]byte{key128, key256} {
+			config := Config{
+				MinVersion:   Version10,
+				MaxVersion:   maxVersion,
+				CipherSuites: []byte{AES_GCM, CHACHA20_POLY1305},
+				Key:          key,
+				Rand:         bytes.NewReader(randValue),
+				PayloadSize:  maxPayloadSize,
+			}
+			plaintext := make([]byte, maxPayloadSize-1)
+			ciphertext := make([]byte, maxPayloadSize-1+32)
+
+			enc, err := newAuthEncV10(&config)
+			if err != nil {
+				t.Errorf("Failed to create authenticated encryption scheme: %v", err)
+			}
+			enc.Seal(ciphertext, plaintext)
+
+			dec, err := newAuthDecV10(&config)
+			if err != nil {
+				t.Errorf("Failed to create authenticated decryption scheme: %v", err)
+			}
+			if err = dec.Open(plaintext, ciphertext); err != nil {
+				t.Errorf("Failed to open ciphertext: %v", err)
+			}
+			if !isZero(plaintext) {
+				t.Errorf("Decryption failed")
+			}
+		}
+	}
+}
+
 func TestSealV10(t *testing.T) {
 	key, _ := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 	randValue, _ := hex.DecodeString("0001020304050607")
@@ -69,7 +107,7 @@ func TestOpenV10(t *testing.T) {
 		config := Config{
 			MinVersion:     Version10,
 			MaxVersion:     Version10,
-			CipherSuites:   []byte{AES_256_GCM, CHACHA20_POLY1305},
+			CipherSuites:   []byte{AES_GCM, CHACHA20_POLY1305},
 			Key:            key,
 			SequenceNumber: uint32(i), //nolint:gosec // Test loop counter
 			Rand:           rand.Reader,
@@ -160,7 +198,7 @@ func TestOpenV20(t *testing.T) {
 		config := Config{
 			MinVersion:     Version20,
 			MaxVersion:     Version20,
-			CipherSuites:   []byte{AES_256_GCM, CHACHA20_POLY1305},
+			CipherSuites:   []byte{AES_GCM, CHACHA20_POLY1305},
 			Key:            key,
 			SequenceNumber: uint32(i), //nolint:gosec // Test loop counter
 			Rand:           rand.Reader,
@@ -188,7 +226,7 @@ func TestOpenV20(t *testing.T) {
 		config := Config{
 			MinVersion:     Version20,
 			MaxVersion:     Version20,
-			CipherSuites:   []byte{AES_256_GCM, CHACHA20_POLY1305},
+			CipherSuites:   []byte{AES_GCM, CHACHA20_POLY1305},
 			Key:            key,
 			SequenceNumber: uint32(i), //nolint:gosec // Test loop counter
 			Rand:           rand.Reader,

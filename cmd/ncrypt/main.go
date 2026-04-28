@@ -152,7 +152,7 @@ func cipherSuites() []byte {
 	case "":
 		return []byte{} // use platform specific cipher
 	case "AES256":
-		return []byte{sio.AES_256_GCM}
+		return []byte{sio.AES_GCM}
 	case "C20P1305":
 		return []byte{sio.CHACHA20_POLY1305}
 	}
@@ -196,21 +196,21 @@ func parseIOArgs() (*os.File, *os.File) {
 }
 
 func readPassword(src *os.File) []byte {
-	state, err := term.GetState(int(src.Fd()))
+	state, err := term.GetState(int(src.Fd())) // #nosec G115
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Failed to read password:", err)
 		exit(codeError)
 	}
 	cleanFn = append(cleanFn, func(code int) {
-		stat, _ := term.GetState(int(src.Fd()))
+		stat, _ := term.GetState(int(src.Fd())) // #nosec G115
 		if code == codeCancel && stat != nil && *stat != *state {
 			_, _ = fmt.Fprintln(src, "\nFailed to read password: Interrupted")
 		}
-		_ = term.Restore(int(src.Fd()), state)
+		_ = term.Restore(int(src.Fd()), state) // #nosec G115
 	})
 
 	_, _ = fmt.Fprint(src, "Enter password:")
-	password, err := term.ReadPassword(int(src.Fd()))
+	password, err := term.ReadPassword(int(src.Fd())) // #nosec G115
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Failed to read password:", err)
 		exit(codeError)
