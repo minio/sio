@@ -21,11 +21,13 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"runtime"
 
+	"golang.org/x/crypto/chacha20"
 	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/sys/cpu"
 )
@@ -84,16 +86,40 @@ var newAES = func(key []byte) (cipher.AEAD, error) {
 }
 
 var newChaCha20 = func(key []byte) (cipher.AEAD, error) {
-	// ChaCha20 requires 256 bit keys. When a 128 bit key K128 is
-	// provided, we expand it to a 256 bit key K256 = K128 | K128.
-	// This is acceptable for ChaCha20 since it has no other requirements
-	// on its key apart from being 256 bit long and unknown to resp.
-	// unpredictable for an adversary.
+	// ChaCha20 requires 256 bit keys. Therefore, we expand the
+	// given 128 bit key into a 256 bit key. However, we don't
+	// use a simple algebraic key expansion to avoid any strutural
+	// relation/pattern in the resulting 256 bit key. Even though
+	// no effective attack against ChaCha20 is known that exploits
+	// related keys, we don't want to make any additional security
+	// assumption about ChaCha20.
+	// Therefore, we use the HChaCha20 KDF to derive a uniformly
+	// random 256 bit key from a 128 bit key as following:
+	//
+	//   Input:  K_i as 128 bit key
+	//   Output: K_o as 256 bit key
+	//
+	//   k   = K_i | 0...0      # Expand K_i by 16 zero bytes to make it 256 bit long
+	//   n   = 0...0 | 1        # Set a 128 bit nonce value n to 1
+	//   K_o = HChaCha20(k, n)  # Derive K_o as output of the HCHaCha20 KDF
+	//
+	// This construction ensures that the K_o is 256 bit long and is not strutural related
+	// to K_i since HChaCha20 is a secure PRF. As long as an attacker has no effective attack
+	// distinguishing HChaCha20 from randomness, the attacker's best attack is a key space
+	// search trying to find the right 128 bit key among 2^128 possible candidates - which
+	// is not feasible.
 	if len(key) == 128/8 {
-		k := make([]byte, 0, 256/8)
-		k = append(k, key...)
-		k = append(k, key...)
-		key = k
+		var (
+			k     [32]byte
+			nonce [16]byte
+			err   error
+		)
+		copy(k[:], key)
+		binary.BigEndian.PutUint32(nonce[12:], 1)
+
+		if key, err = chacha20.HChaCha20(k[:], nonce[:]); err != nil {
+			return nil, err
+		}
 	}
 	return chacha20poly1305.New(key)
 }
