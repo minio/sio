@@ -211,6 +211,7 @@ func (ae *authEncV20) seal(dst, src []byte, finalize bool) error {
 type authDecV20 struct {
 	authDec
 	refHeader headerV20
+	endSeqNum *uint32
 	finalized bool
 }
 
@@ -228,6 +229,7 @@ func newAuthDecV20(cfg *Config) (authDecV20, error) {
 			SeqNum:  cfg.SequenceNumber,
 			Ciphers: ciphers,
 		},
+		endSeqNum: cfg.EndSequenceNumber,
 	}, nil
 }
 
@@ -260,6 +262,8 @@ func (ad *authDecV20) Open(dst, src []byte) error {
 	if header.IsFinal() {
 		ad.finalized = true
 		refNonce[0] |= 0x80 // set final flag
+	} else if ad.endSeqNum != nil && ad.SeqNum == *ad.endSeqNum {
+		ad.finalized = true
 	}
 	if subtle.ConstantTimeCompare(header.Nonce(), refNonce) != 1 {
 		return errNonceMismatch

@@ -177,6 +177,11 @@ type Config struct {
 	// stream.
 	SequenceNumber uint32
 
+	// The last expected sequence number. It should only
+	// be set manually when decrypting a range within a
+	// stream.
+	EndSequenceNumber *uint32
+
 	// The RNG used to generate random values. If not set
 	// the default value (crypto/rand.Reader) is used.
 	Rand io.Reader

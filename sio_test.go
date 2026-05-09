@@ -168,6 +168,117 @@ func TestDecryptBuffer(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("EndSequenceNumber", func(t *testing.T) {
+		datasize := maxPayloadSize * 3
+		data := make([]byte, datasize)
+		if _, err := io.ReadFull(rand.Reader, data); err != nil {
+			t.Fatalf("Failed to generate random data: %v", err)
+		}
+
+		output := bytes.NewBuffer(nil)
+	
+		if _, err := Encrypt(output, bytes.NewReader(data), config); err != nil {
+			t.Errorf("Encryption failed: %v", err)
+		}
+
+		t.Run("First package only", func(t *testing.T) {
+			var end uint32 = 0
+			configEnd := Config{
+				Key: config.Key,
+				EndSequenceNumber: &end,
+			}
+
+			decrypted, err := DecryptBuffer(make([]byte, 0, maxPayloadSize), output.Bytes()[:maxPackageSize], configEnd)
+			if len(decrypted) != maxPayloadSize || err != nil {
+				t.Errorf("Decryption failed: number of bytes: %d vs. %d - %v",  len(decrypted), maxPayloadSize, err)
+				return
+			}
+			if !bytes.Equal(data[:maxPayloadSize], decrypted) {
+				t.Errorf("Failed to encrypt and decrypt data")
+			}
+		})
+
+		t.Run("Second package only", func(t *testing.T) {
+			var end uint32 = 1
+			configEnd := Config{
+				Key: config.Key,
+				SequenceNumber: 1,
+				EndSequenceNumber: &end,
+			}
+
+			decrypted, err := DecryptBuffer(make([]byte, 0, maxPayloadSize), output.Bytes()[maxPackageSize:maxPackageSize*2], configEnd)
+			if len(decrypted) != maxPayloadSize || err != nil {
+				t.Errorf("Decryption failed: number of bytes: %d vs. %d - %v",  len(decrypted), maxPayloadSize*2, err)
+				return
+			}
+			if !bytes.Equal(data[maxPayloadSize:maxPayloadSize*2], decrypted) {
+				t.Errorf("Failed to encrypt and decrypt data")
+			}
+		})
+
+		t.Run("Last package only", func(t *testing.T) {
+			configEnd := Config{
+				Key: config.Key,
+				SequenceNumber: 2,
+			}
+
+			decrypted, err := DecryptBuffer(make([]byte, 0, maxPayloadSize), output.Bytes()[maxPackageSize*2:], configEnd)
+			if len(decrypted) != maxPayloadSize || err != nil {
+				t.Errorf("Decryption failed: number of bytes: %d vs. %d - %v",  len(decrypted), maxPayloadSize, err)
+				return
+			}
+			if !bytes.Equal(data[maxPayloadSize*2:], decrypted) {
+				t.Errorf("Failed to encrypt and decrypt data")
+			}
+		})
+
+		t.Run("First & second package", func(t *testing.T) {
+			var end uint32 = 1
+			configEnd := Config{
+				Key: config.Key,
+				EndSequenceNumber: &end,
+			}
+
+			decrypted, err := DecryptBuffer(make([]byte, 0, maxPayloadSize*2), output.Bytes()[:maxPackageSize*2], configEnd)
+			if len(decrypted) != maxPayloadSize*2 || err != nil {
+				t.Errorf("Decryption failed: number of bytes: %d vs. %d - %v",  len(decrypted), maxPayloadSize*2, err)
+				return
+			}
+			if !bytes.Equal(data[:maxPayloadSize*2], decrypted) {
+				t.Errorf("Failed to encrypt and decrypt data")
+			}
+		})
+
+		t.Run("Second & last package", func(t *testing.T) {
+			var end uint32 = 2
+			configEnd := Config{
+				Key: config.Key,
+				SequenceNumber: 1,
+				EndSequenceNumber: &end,
+			}
+
+			decrypted, err := DecryptBuffer(make([]byte, 0, maxPayloadSize*2), output.Bytes()[maxPackageSize:], configEnd)
+			if len(decrypted) != maxPayloadSize*2 || err != nil {
+				t.Errorf("Decryption failed: number of bytes: %d vs. %d - %v",  len(decrypted), maxPayloadSize*2, err)
+				return
+			}
+			if !bytes.Equal(data[maxPayloadSize:], decrypted) {
+				t.Errorf("Failed to encrypt and decrypt data")
+			}
+		})
+
+		t.Run("End at second but no EndSequenceNumber", func(t *testing.T) {
+			configEnd := Config{
+				Key: config.Key,
+			}
+
+			_, err := DecryptBuffer(make([]byte, 0, maxPayloadSize*2), output.Bytes()[:maxPackageSize*2], configEnd)
+			if err != errUnexpectedEOF {
+				t.Errorf("No error but error expected")
+			}
+		})
+	})
 }
 
 func TestReader(t *testing.T) {
